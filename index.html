@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GatherTime</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0" rel="stylesheet">
+  <style>
+    :root { --paper: #ffffff; --ink: #171717; --inner: #9a9a96; --outer-line: 2px; --inner-line: 4px; }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { background: #fff; cursor: default; }
+    #scene { position: relative; width: 100vw; height: 100vh; overflow: hidden; isolation: isolate; opacity: 1; cursor: grab; touch-action: none; }
+    #scene.panning { cursor: grabbing; }
+    .thing { position: absolute; left: 0; top: 0; transform-origin: center; user-select: none; touch-action: none; pointer-events: none; will-change: transform; z-index: 2; }
+    .thing.object { width: 170px; height: 170px; }
+    .thing.photo { border-radius: 3px; }
+    .object .asset-state { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; filter: drop-shadow(0 5px 5px rgba(25,25,25,.08)); transition: opacity .1s ease; }
+    .object .asset-hover, .object .asset-original { opacity: 0; }
+    .object.is-hovered .asset-outline { opacity: 0; }
+    .object.is-hovered .asset-hover { opacity: 1; }
+    .object.is-selected .asset-outline, .object.is-selected .asset-hover { opacity: 0; }
+    .object.is-selected .asset-original { opacity: 1; filter: drop-shadow(0 14px 12px rgba(25,25,25,.17)); }
+    .thing.is-down { z-index: 30 !important; cursor: grabbing; }
+    .object.is-down .asset-outline, .object.is-down .asset-hover { opacity: 0; }
+    .object.is-down .asset-original { opacity: 1; filter: drop-shadow(0 12px 10px rgba(25,25,25,.16)); }
+    .photo { border: 0; box-shadow: 0 0 0 var(--outer-line) var(--ink), inset 0 0 0 var(--inner-line) var(--inner), 0 5px 5px rgba(25,25,25,.08); background: var(--paper); }
+    .photo.is-hovered { background: var(--tone); box-shadow: 0 0 0 var(--outer-line) var(--ink), 0 5px 5px rgba(25,25,25,.08); }
+    .photo.is-down, .photo.is-down:hover { background-image: var(--photo); background-size: cover; background-position: center; background-repeat: no-repeat; box-shadow: 0 12px 10px rgba(25,25,25,.16); }
+    .photo.is-selected, .photo.is-selected:hover { background-image: var(--photo); background-size: cover; background-position: center; background-repeat: no-repeat; box-shadow: 0 14px 12px rgba(25,25,25,.17); }
+    .thing.is-selected { z-index: 80 !important; }
+    .thing.focus-transition { transition: transform .72s cubic-bezier(.22,.61,.36,1); }
+    .focus-title { position: absolute; left: -6px; top: -10px; z-index: 3; max-width: 220px; padding: 4px 7px 5px; overflow: hidden; color: #fff; background: #171717; font: 600 16px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing: -.02em; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; }
+    .material-symbols-rounded { font-family: "Material Symbols Rounded"; font-weight: normal; font-style: normal; font-size: 24px; line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr; -webkit-font-feature-settings: "liga"; -webkit-font-smoothing: antialiased; font-feature-settings: "liga"; }
+    .memory-card { position: absolute; left: 50%; top: calc(100% + 24px); width: min(312px, 78vw); transform: translateX(-50%); color: #171717; opacity: 0; animation: reveal-memory .38s .18s cubic-bezier(.22,.61,.36,1) forwards; pointer-events: auto; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .memory-rule { width: 2px; height: 42px; margin: 0 0 11px 16px; background: #171717; }
+    .memory-index { margin: 0 0 18px; font-size: 48px; font-weight: 400; line-height: .95; letter-spacing: -.055em; }
+    .memory-card p { margin: 0 0 20px; color: #5d626a; font-size: 14px; line-height: 1.62; }
+    .memory-actions { display: grid; grid-template-columns: minmax(0,1fr) 52px; gap: 14px; align-items: center; }
+    .audio-player, .interview-entry { border: 0; color: #fff; background: linear-gradient(180deg,#555,#3f3f3f); box-shadow: 0 5px 0 rgba(33,33,33,.32), 0 8px 16px rgba(20,20,20,.12); cursor: pointer; }
+    .audio-player { min-width: 0; height: 50px; display: grid; grid-template-columns: 38px minmax(0,1fr) 38px; align-items: center; gap: 8px; padding: 0 12px 0 8px; border-radius: 17px; }
+    .audio-player:active, .interview-entry:active { transform: translateY(2px); box-shadow: 0 3px 0 rgba(33,33,33,.3); }
+    .audio-toggle { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.12); }
+    .audio-toggle .material-symbols-rounded { font-size: 27px; }
+    .audio-time { color: rgba(255,255,255,.52); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+    .waveform { height: 26px; display: flex; align-items: center; justify-content: space-between; gap: 2px; overflow: hidden; }
+    .waveform i { flex: 0 0 2px; height: var(--h); border-radius: 2px; background: rgba(255,255,255,.92); transform-origin: center; }
+    .audio-player.is-playing .waveform i { animation: voice-wave .7s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -45ms); }
+    .interview-entry { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 50%; padding: 0; }
+    .interview-entry .material-symbols-rounded { font-size: 31px; }
+    #entry-toast { position: fixed; left: 50%; bottom: 28px; z-index: 120; transform: translate(-50%,12px); padding: 9px 14px; border-radius: 999px; color: #fff; background: rgba(24,24,24,.88); opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease; font: 13px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    #entry-toast.show { opacity: 1; transform: translate(-50%,0); }
+    @keyframes reveal-memory { from { opacity: 0; transform: translate(-50%,8px); } to { opacity: 1; transform: translate(-50%,0); } }
+    @keyframes voice-wave { from { transform: scaleY(.5); opacity: .65; } to { transform: scaleY(1); opacity: 1; } }
+    #settings-button { position: fixed; top: 18px; right: 18px; width: 42px; height: 42px; z-index: 101; border: 1px solid rgba(20,20,20,.16); border-radius: 50%; background: rgba(244,243,239,.86); backdrop-filter: blur(14px); display: grid; place-items: center; padding: 0; cursor: pointer; box-shadow: 0 6px 20px rgba(30,30,30,.08); }
+    #settings-button svg { width: 19px; height: 19px; stroke: var(--ink); }
+    #settings-button .material-symbols-rounded { font-size: 21px; color: var(--ink); }
+    #settings-panel { position: fixed; top: 70px; right: 18px; width: 248px; max-height: calc(100vh - 88px); overflow-y: auto; z-index: 100; padding: 16px; border: 1px solid rgba(20,20,20,.14); border-radius: 16px; background: rgba(244,243,239,.92); backdrop-filter: blur(18px); box-shadow: 0 14px 38px rgba(30,30,30,.12); opacity: 0; transform: translateY(-8px) scale(.98); transform-origin: top right; pointer-events: none; transition: opacity .16s ease, transform .16s ease; }
+    #settings-panel.open { opacity: 1; transform: none; pointer-events: auto; }
+    .control { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 12px; margin-bottom: 15px; font: 12px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #333; }
+    .control:last-child { margin-bottom: 0; }
+    .control output { color: #777; font-variant-numeric: tabular-nums; }
+    .control input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: #1d1d1d; }
+    .control input[type="color"] { width: 28px; height: 22px; padding: 0; border: 0; border-radius: 6px; background: transparent; overflow: hidden; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <main id="scene" aria-label="interactive floating objects"></main>
+  <button id="settings-button" aria-label="打开参数设置" aria-expanded="false">
+    <span class="material-symbols-rounded" aria-hidden="true">tune</span>
+  </button>
+  <div id="entry-toast" role="status">录音 / AI 语音采访入口</div>
+  <aside id="settings-panel" aria-hidden="true">
+    <label class="control"><span>外描边宽度</span><output id="outer-value">2px</output><input id="outer-width" type="range" min="0" max="12" step="1" value="2"></label>
+    <label class="control"><span>内描边宽度</span><output id="inner-value">4px</output><input id="inner-width" type="range" min="0" max="16" step="1" value="4"></label>
+    <label class="control"><span>外描边颜色</span><input id="outer-color" type="color" value="#171717" aria-label="外描边颜色"></label>
+    <label class="control"><span>内描边颜色</span><input id="inner-color" type="color" value="#9a9a96" aria-label="内描边颜色"></label>
+    <label class="control"><span>排斥半径</span><output id="repulsion-value">10px</output><input id="repulsion-radius" type="range" min="0" max="120" step="2" value="10"></label>
+    <label class="control"><span>视角大小</span><output id="zoom-value">100%</output><input id="view-zoom" type="range" min="40" max="180" step="5" value="100"></label>
+    <label class="control"><span>物品大小</span><output id="size-value">150%</output><input id="item-size" type="range" min="50" max="160" step="5" value="150"></label>
+  </aside>
+  <script src="assets/objects/manifest.js"></script>
+  <script>
+    const scene = document.querySelector('#scene');
+    const root = document.documentElement;
+    const settingsButton = document.querySelector('#settings-button');
+    const settingsPanel = document.querySelector('#settings-panel');
+    const entryToast = document.querySelector('#entry-toast');
+    const TAU = Math.PI * 2;
+    const camera = { x: 0, y: 0, zoom: 1, dragging: false, lastX: 0, lastY: 0 };
+    let repulsionGap = 10;
+    let itemScale = 1.5;
+    let outlineOuter = 2;
+    let outlineInner = 4;
+    let outlineInk = '#171717';
+    let outlineGray = '#9a9a96';
+    let outlineRenderToken = 0;
+    let outlineRenderTimer = 0;
+    let awakeUntil = 0;
+    let gatherBoostUntil = 0;
+    let toastTimer = 0;
+    const objectAssets = window.OBJECT_ASSETS || [];
+    const tones = ['#c59b72','#c47c68','#a9a06a','#a8889d','#82a49a','#b66e5c','#91a5b3','#c39a58','#a98272'];
+    const photos = [
+      {src:'assets/photos/family.webp',ratio:3/2},{src:'assets/photos/street.webp',ratio:4/3},
+      {src:'assets/photos/school.webp',ratio:2/3},{src:'assets/photos/seaside.webp',ratio:3/2},
+      {src:'assets/photos/birthday.webp',ratio:4/3},{src:'assets/photos/dog.webp',ratio:1},
+      {src:'assets/photos/train.webp',ratio:2/3},{src:'assets/photos/house.webp',ratio:4/3},
+      {src:'assets/photos/park.webp',ratio:3/2}
+    ];
+    const objectMemories = [
+      ['旧钥匙','外婆总把它放在玄关的小瓷碟里。后来门锁换了，它却一直没有被丢掉。'],
+      ['搪瓷杯','小时候每次回家，桌上都会有一杯温水。杯沿的缺口，到现在还记得。'],
+      ['旧磁带','A 面是父亲喜欢的歌，B 面录进了我们说话和笑闹的声音。'],
+      ['胶片相机','很多照片已经褪色，但按下快门前大家靠近彼此的样子仍然清晰。'],
+      ['木梳','早晨坐在窗边，奶奶一边梳头，一边讲那些重复过很多次的故事。'],
+      ['打火机','它很少被真正点燃，却总被父亲握在手里反复开合。'],
+      ['旧汤匙','边缘已经磨得发亮，是家里那只陪了我们很多年的小汤匙。'],
+      ['铁皮机器人','小时候以为它能一直走下去，直到发条慢慢停在客厅中央。'],
+      ['秋天的叶子','夹在书页里的叶子已经失去颜色，但那次散步还留在记忆里。']
+    ];
+    const photoMemories = [
+      ['1998 · 家里的客厅','一家人难得都坐进同一个画面。快门落下以后，狗先跑出了镜头。'],
+      ['2001 · 老街','放学后总要绕一点远路，从这条街慢慢走回家。'],
+      ['2004 · 毕业那天','校服、操场和没有说出口的告别，都留在这张照片里。'],
+      ['2007 · 海边','第一次看到海，我们站在风里，谁也不愿意先回去。'],
+      ['2010 · 生日','蜡烛吹灭前，大家催着我快点许愿。'],
+      ['2012 · 小狗','它总在门口等我们回家，好像从来不知道什么叫迟到。'],
+      ['2015 · 绿皮火车','窗外的景色慢慢向后退，那是第一次独自去很远的地方。'],
+      ['2018 · 旧房子','搬家前拍下最后一张照片，门框上还留着量身高的刻度。'],
+      ['2020 · 公园','一个普通的下午，因为有人记得按下快门，后来变得很珍贵。']
+    ];
+    [...objectAssets.flatMap(asset=>[asset.original,asset.outline,asset.hover]),...photos.map(photo=>photo.src)].forEach(src=>{
+      const image=new Image();image.decoding='async';image.src=src;
+    });
+    const items = [];
+    const center = { x: .5, y: .48 };
+    function decodeMask(value) {
+      const binary=atob(value),bytes=new Uint8Array(binary.length);
+      for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+      return bytes;
+    }
+    function addThing(type, i) {
+      const el = document.createElement('div');
+      el.className = `thing ${type}`;
+      let w,h,hull,hitMask=null;
+      if (type === 'object') {
+        const asset=objectAssets[i];
+        el.style.setProperty('--tone', asset.tone);
+        el.innerHTML = `<img class="asset-state asset-outline" src="${asset.outline}" alt=""><img class="asset-state asset-hover" src="${asset.hover}" alt=""><img class="asset-state asset-original" src="${asset.original}" alt="">`;
+        w=170;h=170;hull=asset.hull.map(([x,y])=>({x,y}));hitMask=decodeMask(asset.hitMask);
+      } else {
+        const asset=photos[i],area=19000;
+        w=Math.sqrt(area*asset.ratio);h=w/asset.ratio;
+        el.style.setProperty('--photo', `url('${asset.src}')`);
+        el.style.setProperty('--tone', tones[(i + 3) % tones.length]);
+        hull=[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}];
+      }
+      scene.appendChild(el);
+      const memory=(type==='object'?objectMemories:photoMemories)[i];
+      const item={ el, type, order:items.length+1, x:0,y:0,vx:0,vy:0,angle:(Math.random()-.5)*26,baseW:w,baseH:h,w,h,drag:false,px:0,py:0,hull,hitMask,z:i,memory,
+        originalSrc:type==='object'?new URL(objectAssets[i].original,document.baseURI).href:null,tone:type==='object'?objectAssets[i].tone:null,outlineUrl:null,hoverUrl:null };
+      items.push(item);
+    }
+    for (let i=0;i<objectAssets.length;i++) addThing('object', i);
+    for (let i=0;i<9;i++) addThing('photo', i);
+    function render(a) {
+      const screenX=(a.x+a.w/2)*camera.zoom+camera.x-a.w/2;
+      const screenY=(a.y+a.h/2)*camera.zoom+camera.y-a.h/2;
+      a.el.style.transform = `translate3d(${screenX}px,${screenY}px,0) rotate(${a.angle}deg) scale(${camera.zoom})`;
+    }
+    function renderAll() { items.forEach(render); }
+    function setSize(a, scale) {
+      a.w = a.baseW * scale;
+      a.h = a.baseH * scale;
+      a.el.style.width = `${a.w}px`;
+      a.el.style.height = `${a.h}px`;
+    }
+    function applyOutlineMetrics() {
+      root.style.setProperty('--outer-line', `${outlineOuter*itemScale}px`);
+      root.style.setProperty('--inner-line', `${outlineInner*itemScale}px`);
+      root.style.setProperty('--ink', outlineInk);
+      root.style.setProperty('--inner', outlineGray);
+    }
+    function hexRgb(hex) {
+      const value=hex.replace('#','');
+      return [parseInt(value.slice(0,2),16),parseInt(value.slice(2,4),16),parseInt(value.slice(4,6),16)];
+    }
+    function morphMask(mask, width, height, radius, erode=false) {
+      if(radius<=0)return mask.slice();
+      const stride=width+1, integral=new Uint32Array((width+1)*(height+1));
+      for(let y=0;y<height;y++){
+        let row=0;
+        for(let x=0;x<width;x++){
+          row+=mask[y*width+x];
+          integral[(y+1)*stride+x+1]=integral[y*stride+x+1]+row;
+        }
+      }
+      const result=new Uint8Array(mask.length), full=(radius*2+1)**2;
+      for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+        const x0=Math.max(0,x-radius),y0=Math.max(0,y-radius),x1=Math.min(width-1,x+radius),y1=Math.min(height-1,y+radius);
+        const sum=integral[(y1+1)*stride+x1+1]-integral[y0*stride+x1+1]-integral[(y1+1)*stride+x0]+integral[y0*stride+x0];
+        result[y*width+x]=erode ? Number(sum===full) : Number(sum>0);
+      }
+      return result;
+    }
+    function paintObjectState(mask, expanded, core, size, fill, hovered=false) {
+      const canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;
+      const ctx=canvas.getContext('2d'), pixels=ctx.createImageData(size,size);
+      const ink=hexRgb(outlineInk), inner=hexRgb(outlineGray), tone=hexRgb(fill);
+      for(let i=0;i<mask.length;i++){
+        if(!expanded[i])continue;
+        const p=i*4;
+        let color=ink;
+        if(mask[i])color=hovered ? tone : (core[i] ? [255,255,255] : inner);
+        pixels.data[p]=color[0];pixels.data[p+1]=color[1];pixels.data[p+2]=color[2];pixels.data[p+3]=255;
+      }
+      ctx.putImageData(pixels,0,0);
+      return canvas.toDataURL('image/png');
+    }
+    async function buildObjectStates(a) {
+      const size=512, image=new Image();image.decoding='async';image.src=a.originalSrc;
+      if(image.decode)await image.decode();else await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=reject;});
+      const canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;
+      const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(image,0,0,size,size);
+      const source=ctx.getImageData(0,0,size,size).data, mask=new Uint8Array(size*size);
+      for(let i=0;i<mask.length;i++)mask[i]=Number(source[i*4+3]>8);
+      const outerRadius=Math.round(outlineOuter*size/a.baseW);
+      const innerRadius=Math.round(outlineInner*size/a.baseW);
+      const expanded=morphMask(mask,size,size,outerRadius);
+      const core=morphMask(mask,size,size,innerRadius,true);
+      return {
+        outline:paintObjectState(mask,expanded,core,size,a.tone,false),
+        hover:paintObjectState(mask,expanded,core,size,a.tone,true)
+      };
+    }
+    function scheduleObjectOutlines() {
+      clearTimeout(outlineRenderTimer);
+      const token=++outlineRenderToken;
+      outlineRenderTimer=setTimeout(async()=>{
+        const objects=items.filter(a=>a.type==='object');
+        try{
+          const states=await Promise.all(objects.map(buildObjectStates));
+          if(token!==outlineRenderToken)return;
+          objects.forEach((a,i)=>{
+            a.el.querySelector('.asset-outline').src=states[i].outline;
+            a.el.querySelector('.asset-hover').src=states[i].hover;
+          });
+        }catch(error){ console.warn('使用预渲染描边作为回退',error); }
+      },80);
+    }
+    function worldPolygon(a) {
+      const angle=a.angle*Math.PI/180, cos=Math.cos(angle), sin=Math.sin(angle), cx=a.x+a.w/2, cy=a.y+a.h/2;
+      return a.hull.map(p=>{const lx=p.x*a.w-a.w/2,ly=p.y*a.h-a.h/2;return{x:cx+lx*cos-ly*sin,y:cy+lx*sin+ly*cos};});
+    }
+    function constrainHorizontal(a, bounce=true) {
+      const margin=12+outlineOuter*itemScale;
+      const left=(-camera.x)/camera.zoom+margin;
+      const right=(innerWidth-camera.x)/camera.zoom-margin;
+      const polygon=worldPolygon(a);
+      let minX=Math.min(...polygon.map(p=>p.x)),maxX=Math.max(...polygon.map(p=>p.x));
+      if(a===selectedItem){
+        const obstacle=focusObstacle();
+        if(obstacle){minX=Math.min(minX,obstacle.x);maxX=Math.max(maxX,obstacle.x+obstacle.w);}
+      }
+      let shift=0;
+      if(maxX-minX>right-left)shift=(left+right-minX-maxX)/2;
+      else if(minX<left)shift=left-minX;
+      else if(maxX>right)shift=right-maxX;
+      if(shift){a.x+=shift;if(bounce)a.vx*=-.32;}
+    }
+    function projectPolygon(points, ax, ay) {
+      let min=Infinity,max=-Infinity;
+      points.forEach(p=>{const value=p.x*ax+p.y*ay;min=Math.min(min,value);max=Math.max(max,value);});
+      return {min,max};
+    }
+    function collisionMTV(a,b) {
+      const strokeA=outlineOuter*itemScale;
+      const strokeB=outlineOuter*itemScale;
+      const safety=repulsionGap*2+strokeA+strokeB;
+      const dx=(b.x+b.w/2)-(a.x+a.w/2),dy=(b.y+b.h/2)-(a.y+a.h/2);
+      const broadA=Math.hypot(a.w,a.h)/2,broadB=Math.hypot(b.w,b.h)/2;
+      if(Math.hypot(dx,dy)>broadA+broadB+safety)return null;
+      const pa=worldPolygon(a),pb=worldPolygon(b),axes=[];
+      for(const polygon of [pa,pb])for(let i=0;i<polygon.length;i++){
+        const p=polygon[i],q=polygon[(i+1)%polygon.length],ex=q.x-p.x,ey=q.y-p.y,length=Math.hypot(ex,ey)||1;
+        axes.push({x:-ey/length,y:ex/length});
+      }
+      let bestDepth=Infinity,bestX=0,bestY=0;
+      for(const axis of axes){
+        const ia=projectPolygon(pa,axis.x,axis.y),ib=projectPolygon(pb,axis.x,axis.y);
+        const pushPositive=ia.max+safety-ib.min;
+        const pushNegative=ib.max+safety-ia.min;
+        if(pushPositive<=0||pushNegative<=0)return null;
+        if(pushPositive<bestDepth){bestDepth=pushPositive;bestX=axis.x;bestY=axis.y;}
+        if(pushNegative<bestDepth){bestDepth=pushNegative;bestX=-axis.x;bestY=-axis.y;}
+      }
+      return {nx:bestX,ny:bestY,depth:bestDepth};
+    }
+    function itemAxes(a) {
+      const angle=a.angle*Math.PI/180, cos=Math.cos(angle), sin=Math.sin(angle);
+      return [[cos,sin],[-sin,cos]];
+    }
+    function projectionRadius(a, ax, ay) {
+      if (a.type !== 'photo') return Math.min(a.w,a.h)*.39;
+      const [[ux,uy],[vx,vy]]=itemAxes(a);
+      return Math.abs(ax*ux+ay*uy)*a.w/2 + Math.abs(ax*vx+ay*vy)*a.h/2;
+    }
+    function requiredDistance(a,b,dx,dy) {
+      const d=Math.hypot(dx,dy)||1, nx=dx/d, ny=dy/d;
+      const axes=[[nx,ny]];
+      if (a.type==='photo') axes.push(...itemAxes(a));
+      if (b.type==='photo') axes.push(...itemAxes(b));
+      let boundary=Infinity;
+      axes.forEach(([ax,ay])=>{
+        const projection=Math.abs(nx*ax+ny*ay);
+        if (projection>.001) boundary=Math.min(boundary,(projectionRadius(a,ax,ay)+projectionRadius(b,ax,ay))/projection);
+      });
+      return boundary+repulsionGap*2+outlineOuter*itemScale*2;
+    }
+    function packedLayout() {
+      const W = innerWidth, H = innerHeight;
+      const cx = W * center.x, cy = H * center.y;
+      const scale = itemScale;
+      items.forEach(a => setSize(a, scale));
+      const ordered = [...items].sort((a,b) => Math.hypot(b.w,b.h) - Math.hypot(a.w,a.h));
+      const result = [];
+      for (const [index, a] of ordered.entries()) {
+        let best = null;
+        for (let k=0; k<30000; k++) {
+          const angle = k * 2.399963 + index * .47;
+          const distance = Math.sqrt(k) * Math.max(2.2, 3.8 * scale);
+          const x = cx + Math.cos(angle) * distance;
+          const y = cy + Math.sin(angle) * distance;
+          if (result.every(b => {
+            const dx=x-b.cx, dy=y-b.cy;
+            return Math.hypot(dx,dy) >= requiredDistance(a,b.item,dx,dy);
+          })) { best = { x, y }; break; }
+        }
+        if (!best) {
+          const fallbackAngle = index * (TAU / items.length);
+          const fallbackDistance = 240 + index * 18;
+          best = { x: cx+Math.cos(fallbackAngle)*fallbackDistance, y: cy+Math.sin(fallbackAngle)*fallbackDistance };
+        }
+        result.push({ item:a, cx:best.x, cy:best.y });
+      }
+      result.forEach(({item:a, cx:x, cy:y}) => {
+        a.x = x - a.w / 2;
+        a.y = y - a.h / 2;
+        render(a);
+      });
+      resolveCollisions(null,16);
+    }
+    function resolveCollisions(dragged, passes=8) {
+      for (let pass=0; pass<passes; pass++) {
+        let changed = false;
+        for (let i=0; i<items.length; i++) {
+          for (let j=i+1; j<items.length; j++) {
+            const a = items[i], b = items[j];
+            const hit=collisionMTV(a,b);
+            if(!hit)continue;
+            const {nx,ny,depth:overlap}=hit;
+            if (a === selectedItem && a !== dragged) { b.x += nx*overlap; b.y += ny*overlap; b.vx += nx*overlap*.045; b.vy += ny*overlap*.045; }
+            else if (b === selectedItem && b !== dragged) { a.x -= nx*overlap; a.y -= ny*overlap; a.vx -= nx*overlap*.045; a.vy -= ny*overlap*.045; }
+            else if (a === dragged) { b.x += nx*overlap; b.y += ny*overlap; b.vx += nx*overlap*.045; b.vy += ny*overlap*.045; }
+            else if (b === dragged) { a.x -= nx*overlap; a.y -= ny*overlap; a.vx -= nx*overlap*.045; a.vy -= ny*overlap*.045; }
+            else {
+              a.x -= nx*overlap*.5; a.y -= ny*overlap*.5; b.x += nx*overlap*.5; b.y += ny*overlap*.5;
+              const relative=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
+              const impulse=Math.max(0, overlap*.025-relative*.35);
+              a.vx-=nx*impulse; a.vy-=ny*impulse; b.vx+=nx*impulse; b.vy+=ny*impulse;
+            }
+            changed = true;
+          }
+        }
+        items.forEach(a=>constrainHorizontal(a));
+        if (!changed) break;
+      }
+      renderAll();
+    }
+    function wake(duration=1600) { awakeUntil=Math.max(awakeUntil, performance.now()+duration); }
+    let selectedItem=null;
+    let selectedAngle=0;
+    let speakingItem=null;
+    const FOCUS_GAP=34;
+    function focusObstacles() {
+      if(!selectedItem)return [];
+      const title=selectedItem.el.querySelector('.focus-title');
+      const card=selectedItem.el.querySelector('.memory-card');
+      const boxes=[];
+      if(title)boxes.push({x:selectedItem.x+title.offsetLeft,y:selectedItem.y+title.offsetTop,w:title.offsetWidth,height:title.offsetHeight});
+      if(card)boxes.push({x:selectedItem.x+selectedItem.w/2-card.offsetWidth/2,y:selectedItem.y+selectedItem.h+24,w:card.offsetWidth,height:card.offsetHeight});
+      return boxes;
+    }
+    function focusObstacle() {
+      if(!selectedItem)return null;
+      const boxes=[{x:selectedItem.x,y:selectedItem.y,w:selectedItem.w,height:selectedItem.h},...focusObstacles()];
+      const left=Math.min(...boxes.map(box=>box.x)),right=Math.max(...boxes.map(box=>box.x+box.w));
+      const top=Math.min(...boxes.map(box=>box.y)),bottom=Math.max(...boxes.map(box=>box.y+box.height));
+      return {x:left,y:top,w:right-left,height:bottom-top};
+    }
+    function clampCameraY() {
+      if(!items.length)return;
+      let top=Math.min(...items.map(a=>a.y));
+      let bottom=Math.max(...items.map(a=>a.y+a.h));
+      const obstacle=focusObstacle();
+      if(obstacle){top=Math.min(top,obstacle.y);bottom=Math.max(bottom,obstacle.y+obstacle.height);}
+      const padding=Math.min(180,innerHeight*.22);
+      const maxY=padding-top*camera.zoom;
+      const minY=innerHeight-padding-bottom*camera.zoom;
+      if(minY>maxY){camera.y=(minY+maxY)/2;return;}
+      camera.y=Math.max(minY,Math.min(maxY,camera.y));
+    }
+    function pushAwayFromFocus(passes=18, resolveAfter=true) {
+      const obstacles=focusObstacles();
+      if(!obstacles.length)return;
+      for(let pass=0;pass<passes;pass++){
+        let changed=false;
+        items.forEach(a=>{
+          if(a===selectedItem||a.drag)return;
+          obstacles.forEach(box=>{
+            const left=box.x-FOCUS_GAP,right=box.x+box.w+FOCUS_GAP,top=box.y-FOCUS_GAP,bottom=box.y+box.height+FOCUS_GAP;
+            const radius=Math.hypot(a.w,a.h)*.36;
+            const cx=a.x+a.w/2,cy=a.y+a.h/2;
+            const nearestX=Math.max(left,Math.min(cx,right));
+            const nearestY=Math.max(top,Math.min(cy,bottom));
+            let dx=cx-nearestX,dy=cy-nearestY,distance=Math.hypot(dx,dy);
+            if(distance>=radius)return;
+            if(distance<.001){
+              const choices=[{d:Math.abs(cx-left),x:-1,y:0},{d:Math.abs(right-cx),x:1,y:0},{d:Math.abs(cy-top),x:0,y:-1},{d:Math.abs(bottom-cy),x:0,y:1}].sort((a,b)=>a.d-b.d);
+              dx=choices[0].x;dy=choices[0].y;distance=1;
+            }
+            const push=radius-distance+2;
+            a.x+=dx/distance*push;a.y+=dy/distance*push;
+            changed=true;
+          });
+        });
+        if(resolveAfter)resolveCollisions(selectedItem,3);
+        if(!changed)break;
+      }
+      items.forEach(a=>constrainHorizontal(a));
+      renderAll();
+    }
+    function markFocusTransition() {
+      items.forEach(a=>a.el.classList.add('focus-transition'));
+      setTimeout(()=>items.forEach(a=>a.el.classList.remove('focus-transition')),760);
+    }
+    function clearSelection({animate=true,wakeItems=true}={}) {
+      if(!selectedItem)return;
+      const previous=selectedItem;
+      stopMemoryAudio();
+      if(animate)markFocusTransition();
+      previous.angle=selectedAngle;
+      previous.el.classList.remove('is-selected');
+      previous.el.querySelector('.focus-title')?.remove();
+      previous.el.querySelector('.memory-card')?.remove();
+      selectedItem=null;
+      if(wakeItems){
+        const cx=(-camera.x+innerWidth*.5)/camera.zoom,cy=(-camera.y+innerHeight*.48)/camera.zoom;
+        items.forEach(a=>{a.vx+=(cx-(a.x+a.w/2))*.006;a.vy+=(cy-(a.y+a.h/2))*.006;});
+        gatherBoostUntil=performance.now()+1450;
+        wake(2400);
+      }
+      clampCameraY();
+      renderAll();
+    }
+    function formatAudioTime(seconds) {
+      return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
+    }
+    function updateAudioButton(a) {
+      const button=a.el.querySelector('.audio-player');
+      if(!button)return;
+      const playing=speakingItem===a&&!speechSynthesis.paused;
+      button.classList.toggle('is-playing',playing);
+      button.querySelector('.audio-toggle .material-symbols-rounded').textContent=playing?'pause':'play_arrow';
+      button.querySelector('.audio-time').textContent=formatAudioTime(a.audioElapsed||0);
+    }
+    function startAudioTimer(a) {
+      clearInterval(a.audioTimer);
+      a.audioTimer=setInterval(()=>{a.audioElapsed=(a.audioElapsed||0)+1;updateAudioButton(a);},1000);
+    }
+    function stopMemoryAudio() {
+      if(speakingItem){clearInterval(speakingItem.audioTimer);speakingItem.audioTimer=0;speakingItem.audioElapsed=0;}
+      if('speechSynthesis' in window)speechSynthesis.cancel();
+      const previous=speakingItem;speakingItem=null;
+      if(previous)updateAudioButton(previous);
+    }
+    function toggleMemoryAudio(a) {
+      if(!('speechSynthesis' in window))return;
+      if(speakingItem===a){
+        if(speechSynthesis.paused){speechSynthesis.resume();startAudioTimer(a);}else{speechSynthesis.pause();clearInterval(a.audioTimer);}
+        updateAudioButton(a);return;
+      }
+      stopMemoryAudio();
+      const utterance=new SpeechSynthesisUtterance(a.memory[1]);
+      utterance.lang='zh-CN';utterance.rate=.92;
+      utterance.onend=()=>{if(speakingItem===a)stopMemoryAudio();};
+      utterance.onerror=()=>{if(speakingItem===a)stopMemoryAudio();};
+      speakingItem=a;a.audioElapsed=0;speechSynthesis.speak(utterance);startAudioTimer(a);updateAudioButton(a);
+    }
+    function showEntryToast() {
+      clearTimeout(toastTimer);entryToast.classList.add('show');
+      toastTimer=setTimeout(()=>entryToast.classList.remove('show'),1500);
+    }
+    function selectItem(a) {
+      if(selectedItem===a){clearSelection();return;}
+      if(selectedItem)clearSelection({animate:false,wakeItems:false});
+      selectedItem=a;selectedAngle=a.angle;a.angle=0;a.vx=0;a.vy=0;
+      a.z=++zCounter;a.el.style.zIndex=a.z;a.el.classList.add('is-selected');
+      const title=document.createElement('div');
+      title.className='focus-title';
+      title.textContent=a.memory[0].split('·').at(-1).trim();
+      a.el.appendChild(title);
+      const card=document.createElement('div');
+      card.className='memory-card';
+      const bars=[7,13,10,18,9,15,23,12,20,26,17,24,13,21,9,16,7,11];
+      card.innerHTML=`<div class="memory-rule"></div><div class="memory-index">${String(a.order).padStart(2,'0')}</div><p>${a.memory[1]}</p><div class="memory-actions"><button class="audio-player" type="button" aria-label="播放${a.memory[0]}的录音"><span class="audio-toggle"><span class="material-symbols-rounded" aria-hidden="true">play_arrow</span></span><span class="waveform" aria-hidden="true">${bars.map((height,index)=>`<i style="--h:${height}px;--i:${index}"></i>`).join('')}</span><span class="audio-time">0:00</span></button><button class="interview-entry" type="button" aria-label="进入录音或 AI 语音采访"><span class="material-symbols-rounded" aria-hidden="true">mic</span></button></div>`;
+      card.addEventListener('pointerdown',event=>event.stopPropagation());
+      card.querySelector('.audio-player').addEventListener('click',()=>toggleMemoryAudio(a));
+      card.querySelector('.interview-entry').addEventListener('click',showEntryToast);
+      a.el.appendChild(card);
+      markFocusTransition();
+      pushAwayFromFocus();
+      setTimeout(()=>{if(selectedItem===a)pushAwayFromFocus(8);},180);
+      clampCameraY();
+      renderAll();
+    }
+    let lastFrame=performance.now();
+    function physicsFrame(now) {
+      const dt=Math.min(2, Math.max(.35, (now-lastFrame)/16.667));
+      lastFrame=now;
+      const activeDrag=items.some(a=>a.drag);
+      const moving=items.some(a=>Math.hypot(a.vx,a.vy)>.025);
+      if (activeDrag || selectedItem || now<awakeUntil || moving) {
+        let cx=0, cy=0;
+        items.forEach(a=>{cx+=a.x+a.w/2;cy+=a.y+a.h/2;}); cx/=items.length; cy/=items.length;
+        items.forEach(a=>{
+          if (a.drag || a===selectedItem) return;
+          if (selectedItem || now<awakeUntil) {
+            const attraction=selectedItem ? .00018 : (now<gatherBoostUntil ? .0014 : .00034);
+            a.vx+=(cx-(a.x+a.w/2))*attraction*dt;
+            a.vy+=(cy-(a.y+a.h/2))*attraction*dt;
+          }
+          a.x+=a.vx*dt; a.y+=a.vy*dt;
+        });
+        if(selectedItem)pushAwayFromFocus(1,false);
+        resolveCollisions(items.find(a=>a.drag) || selectedItem || null, 5);
+        const damping=Math.pow(.92,dt);
+        items.forEach(a=>{if(!a.drag){a.vx*=damping;a.vy*=damping;if(Math.hypot(a.vx,a.vy)<.015){a.vx=0;a.vy=0;}}});
+        renderAll();
+      }
+      requestAnimationFrame(physicsFrame);
+    }
+    let activeItem=null;
+    let hoveredItem=null;
+    let zCounter=items.length;
+    let pressStartX=0,pressStartY=0,dragStarted=false;
+    function localPoint(a, clientX, clientY) {
+      const worldX=(clientX-camera.x)/camera.zoom;
+      const worldY=(clientY-camera.y)/camera.zoom;
+      const cx=a.x+a.w/2, cy=a.y+a.h/2;
+      const dx=worldX-cx, dy=worldY-cy;
+      const angle=-a.angle*Math.PI/180, cos=Math.cos(angle), sin=Math.sin(angle);
+      return {x:dx*cos-dy*sin+a.w/2,y:dx*sin+dy*cos+a.h/2};
+    }
+    function containsPoint(a, clientX, clientY) {
+      const point=localPoint(a,clientX,clientY);
+      if(point.x<0||point.y<0||point.x>=a.w||point.y>=a.h)return false;
+      if(a.type==='photo')return true;
+      const maskSize=64;
+      const mx=Math.min(maskSize-1,Math.floor(point.x/a.w*maskSize));
+      const my=Math.min(maskSize-1,Math.floor(point.y/a.h*maskSize));
+      const bit=my*maskSize+mx;
+      return Boolean(a.hitMask[bit>>3]&(1<<(7-(bit&7))));
+    }
+    function hitItemAt(clientX, clientY) {
+      const ordered=[...items].sort((a,b)=>b.z-a.z);
+      return ordered.find(a=>containsPoint(a,clientX,clientY))||null;
+    }
+    function setHovered(next) {
+      if(hoveredItem===next)return;
+      if(hoveredItem)hoveredItem.el.classList.remove('is-hovered');
+      hoveredItem=next;
+      if(hoveredItem&&!hoveredItem.drag)hoveredItem.el.classList.add('is-hovered');
+      scene.style.cursor=hoveredItem?'pointer':'grab';
+    }
+    scene.addEventListener('pointerdown', e => {
+      if(e.button!==undefined&&e.button!==0)return;
+      const hit=hitItemAt(e.clientX,e.clientY);
+      scene.setPointerCapture(e.pointerId);
+      if(hit){
+        activeItem=hit;dragStarted=false;pressStartX=e.clientX;pressStartY=e.clientY;
+        hit.vx=0;hit.vy=0;hit.px=e.clientX;hit.py=e.clientY;
+      }else{
+        camera.dragging=true;camera.lastX=e.clientX;camera.lastY=e.clientY;scene.classList.add('panning');
+      }
+    });
+    scene.addEventListener('pointermove', e => {
+      if(activeItem){
+        const a=activeItem;
+        if(!dragStarted&&Math.hypot(e.clientX-pressStartX,e.clientY-pressStartY)>=7){
+          dragStarted=true;a.drag=true;a.z=++zCounter;a.el.style.zIndex=a.z;setHovered(null);a.el.classList.add('is-down');wake(900);
+        }
+        if(!dragStarted)return;
+        const dx=(e.clientX-a.px)/camera.zoom,dy=(e.clientY-a.py)/camera.zoom;
+        const steps=Math.max(1,Math.ceil(Math.hypot(dx,dy)/8));
+        for(let step=0;step<steps;step++){a.x+=dx/steps;a.y+=dy/steps;resolveCollisions(a,4);}
+        a.vx=a.vx*.35+dx*.65;a.vy=a.vy*.35+dy*.65;a.px=e.clientX;a.py=e.clientY;wake(900);
+      }else if(camera.dragging){
+        camera.y+=e.clientY-camera.lastY;
+        camera.lastX=e.clientX;camera.lastY=e.clientY;clampCameraY();renderAll();
+      }else if(e.pointerType!=='touch')setHovered(hitItemAt(e.clientX,e.clientY));
+    });
+    function releasePointer(e) {
+      if(activeItem){
+        const a=activeItem;
+        if(dragStarted){
+          resolveCollisions(a,12);a.drag=false;a.el.classList.remove('is-down');
+          if(selectedItem){pushAwayFromFocus(10);}else wake(1800);
+        }else if(e.type!=='pointercancel'){
+          selectItem(a);
+        }
+        activeItem=null;dragStarted=false;
+      }
+      if(camera.dragging){camera.dragging=false;scene.classList.remove('panning');}
+      try{scene.releasePointerCapture(e.pointerId);}catch{}
+      if(e.type!=='pointercancel'&&e.pointerType!=='touch')setHovered(hitItemAt(e.clientX,e.clientY));else setHovered(null);
+    }
+    scene.addEventListener('pointerup',releasePointer);
+    scene.addEventListener('pointercancel',releasePointer);
+    scene.addEventListener('pointerleave',()=>{if(!activeItem&&!camera.dragging)setHovered(null);});
+    scene.addEventListener('wheel', e => {
+      e.preventDefault();
+      camera.y-=e.deltaY;
+      clampCameraY();
+      renderAll();
+    }, {passive:false});
+
+    settingsButton.addEventListener('click', () => {
+      const open = settingsPanel.classList.toggle('open');
+      settingsButton.setAttribute('aria-expanded', String(open));
+      settingsPanel.setAttribute('aria-hidden', String(!open));
+    });
+    function bindRange(id, outputId, apply, format=value=>`${value}px`) {
+      const input=document.querySelector(`#${id}`), output=document.querySelector(`#${outputId}`);
+      input.addEventListener('input', () => { output.value=format(input.value); apply(Number(input.value)); });
+    }
+    bindRange('outer-width','outer-value', value => {
+      outlineOuter=value; applyOutlineMetrics(); scheduleObjectOutlines(); resolveCollisions(null,16); wake(2800);
+    });
+    bindRange('inner-width','inner-value', value => {
+      outlineInner=value; applyOutlineMetrics(); scheduleObjectOutlines();
+    });
+    document.querySelector('#outer-color').addEventListener('input', event => {
+      outlineInk=event.target.value; applyOutlineMetrics(); scheduleObjectOutlines();
+    });
+    document.querySelector('#inner-color').addEventListener('input', event => {
+      outlineGray=event.target.value; applyOutlineMetrics(); scheduleObjectOutlines();
+    });
+    bindRange('repulsion-radius','repulsion-value', value => { repulsionGap=value; resolveCollisions(null,16); wake(4200); });
+    bindRange('view-zoom','zoom-value', value => {
+      const next=value/100, sx=innerWidth/2, sy=innerHeight/2;
+      const wx=(sx-camera.x)/camera.zoom, wy=(sy-camera.y)/camera.zoom;
+      camera.zoom=next; camera.x=sx-wx*next; camera.y=sy-wy*next; renderAll();
+      items.forEach(a=>constrainHorizontal(a));clampCameraY();renderAll();
+    }, value=>`${value}%`);
+    bindRange('item-size','size-value', value => {
+      itemScale=value/100;
+      items.forEach(a=>{const cx=a.x+a.w/2, cy=a.y+a.h/2;setSize(a,itemScale);a.x=cx-a.w/2;a.y=cy-a.h/2;});
+      applyOutlineMetrics(); resolveCollisions(null,16); wake(3200); renderAll();
+    }, value=>`${value}%`);
+    applyOutlineMetrics();
+    scheduleObjectOutlines();
+    packedLayout();
+    items.forEach(a=>constrainHorizontal(a));
+    clampCameraY();
+    window.addEventListener('resize',()=>{
+      camera.x=innerWidth*(1-camera.zoom)/2;
+      items.forEach(a=>constrainHorizontal(a));clampCameraY();renderAll();
+    });
+    requestAnimationFrame(physicsFrame);
+  </script>
+</body>
+</html>
