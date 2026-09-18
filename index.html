@@ -392,6 +392,8 @@
     const FOCUS_GAP_X=30;
     const FOCUS_GAP_Y=58;
     const MEMORY_TOP_GAP=56;
+    const MEMORY_ZONE_TOP_GAP=28;
+    const MEMORY_ZONE_BOTTOM_PADDING=82;
     function memoryMeta(a) {
       if(a.type==='object')return {title:a.memory[0],time:objectTimes[a.order-1]||'时间未记录'};
       const parts=a.memory[0].split('·').map(part=>part.trim());
@@ -401,9 +403,15 @@
       if(!selectedItem)return null;
       const title=selectedItem.focusTitle,card=selectedItem.memoryCard;
       const cardWidth=card?.offsetWidth||Math.min(360,innerWidth*.84);
+      const cardHeight=card?.offsetHeight||230;
+      const cardY=selectedItem.y+selectedItem.h+MEMORY_TOP_GAP;
+      const viewportLeft=-camera.x/camera.zoom;
+      const zoneInset=18/camera.zoom;
+      const zoneY=selectedItem.y+selectedItem.h+MEMORY_ZONE_TOP_GAP;
       return {
         title:{x:selectedItem.x-12,y:selectedItem.y+12,w:title?.offsetWidth||180,height:title?.offsetHeight||52},
-        card:{x:(innerWidth/2-camera.x)/camera.zoom-cardWidth/2,y:selectedItem.y+selectedItem.h+MEMORY_TOP_GAP,w:cardWidth,height:card?.offsetHeight||230}
+        card:{x:(innerWidth/2-camera.x)/camera.zoom-cardWidth/2,y:cardY,w:cardWidth,height:cardHeight},
+        zone:{x:viewportLeft+zoneInset,y:zoneY,w:innerWidth/camera.zoom-zoneInset*2,height:cardY-zoneY+cardHeight+MEMORY_ZONE_BOTTOM_PADDING}
       };
     }
     function renderFocusUI() {
@@ -423,7 +431,7 @@
       const layout=focusLayout();
       return [
         {kind:'title',x:layout.title.x,y:layout.title.y,w:layout.title.w,height:layout.title.height},
-        {kind:'card',x:layout.card.x,y:layout.card.y,w:layout.card.w,height:layout.card.height}
+        {kind:'memory-zone',x:layout.zone.x,y:layout.zone.y,w:layout.zone.w,height:layout.zone.height}
       ];
     }
     function focusObstacle() {
@@ -445,7 +453,18 @@
       if(minY>maxY){camera.y=(minY+maxY)/2;return;}
       camera.y=Math.max(minY,Math.min(maxY,camera.y));
     }
-    function pushAwayFromFocus(passes=18, resolveAfter=true) {
+    function moveBelowMemoryZone(a,box) {
+      if(a===selectedItem||a.drag)return false;
+      const radius=Math.hypot(a.w,a.h)/2;
+      const cy=a.y+a.h/2;
+      const itemTop=cy-radius,itemBottom=cy+radius;
+      const zoneBottom=box.y+box.height;
+      if(itemBottom<=box.y||itemTop>=zoneBottom)return false;
+      a.y+=zoneBottom+18-itemTop;
+      a.vy=Math.max(a.vy,.25);
+      return true;
+    }
+    function pushAwayFromFocus(passes=18, resolveAfter=true, renderAfter=true) {
       const obstacles=focusObstacles();
       if(!obstacles.length)return;
       for(let pass=0;pass<passes;pass++){
@@ -453,6 +472,10 @@
         items.forEach(a=>{
           if(a===selectedItem||a.drag)return;
           obstacles.forEach(box=>{
+            if(box.kind==='memory-zone'){
+              if(moveBelowMemoryZone(a,box))changed=true;
+              return;
+            }
             const left=box.x-FOCUS_GAP_X,right=box.x+box.w+FOCUS_GAP_X,top=box.y-FOCUS_GAP_Y,bottom=box.y+box.height+FOCUS_GAP_Y;
             const radius=Math.hypot(a.w,a.h)*.36;
             const cx=a.x+a.w/2,cy=a.y+a.h/2;
@@ -470,10 +493,32 @@
           });
         });
         if(resolveAfter)resolveCollisions(selectedItem,3,false);
-        if(!changed)break;
+        if(!changed&&!resolveAfter)break;
       }
+      const memoryZone=obstacles.find(box=>box.kind==='memory-zone');
+      if(memoryZone)items.forEach(a=>moveBelowMemoryZone(a,memoryZone));
       items.forEach(a=>constrainHorizontal(a));
-      renderAll();
+      if(renderAfter)renderAll();
+    }
+    function memoryZoneIsClear() {
+      if(!selectedItem)return true;
+      const zone=focusLayout().zone;
+      const bottom=zone.y+zone.height;
+      return items.every(a=>{
+        if(a===selectedItem)return true;
+        const radius=Math.hypot(a.w,a.h)/2;
+        const cy=a.y+a.h/2;
+        return cy+radius<=zone.y||cy-radius>=bottom;
+      });
+    }
+    function revealMemoryWhenClear(a) {
+      if(selectedItem!==a)return;
+      if(memoryZoneIsClear()){
+        a.memoryCard?.classList.add('is-visible');
+        return;
+      }
+      pushAwayFromFocus(4);
+      a.memoryRevealTimer=setTimeout(()=>revealMemoryWhenClear(a),100);
     }
     function markFocusTransition() {
       items.forEach(a=>a.el.classList.add('focus-transition'));
@@ -562,9 +607,7 @@
       renderFocusUI();
       markFocusTransition();
       pushAwayFromFocus();
-      a.memoryRevealTimer=setTimeout(()=>{
-        if(selectedItem===a)card.classList.add('is-visible');
-      },740);
+      a.memoryRevealTimer=setTimeout(()=>revealMemoryWhenClear(a),760);
       clampCameraY();
       renderAll();
     }
@@ -586,8 +629,9 @@
           }
           a.x+=a.vx*dt; a.y+=a.vy*dt;
         });
-        if(selectedItem)pushAwayFromFocus(1,false);
-        resolveCollisions(items.find(a=>a.drag) || selectedItem || null, 5);
+        if(selectedItem)pushAwayFromFocus(1,false,false);
+        resolveCollisions(items.find(a=>a.drag) || selectedItem || null, 5, false);
+        if(selectedItem)pushAwayFromFocus(2,false,false);
         const damping=Math.pow(.92,dt);
         items.forEach(a=>{if(!a.drag){a.vx*=damping;a.vy*=damping;if(Math.hypot(a.vx,a.vy)<.015){a.vx=0;a.vy=0;}}});
         renderAll();
