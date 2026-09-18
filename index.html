@@ -461,7 +461,7 @@
       const zoneBottom=box.y+box.height;
       if(itemBottom<=box.y||itemTop>=zoneBottom)return false;
       a.y+=zoneBottom+18-itemTop;
-      a.vy=Math.max(a.vy,.25);
+      a.vy=Math.max(a.vy,0);
       return true;
     }
     function pushAwayFromFocus(passes=18, resolveAfter=true, renderAfter=true) {
@@ -625,7 +625,13 @@
           if (selectedItem || now<awakeUntil) {
             const attraction=selectedItem ? .00018 : (now<gatherBoostUntil ? .0014 : .00034);
             a.vx+=(cx-(a.x+a.w/2))*attraction*dt;
-            a.vy+=(cy-(a.y+a.h/2))*attraction*dt;
+            let targetY=cy;
+            if(selectedItem){
+              const zone=focusLayout().zone;
+              const itemCenterY=a.y+a.h/2;
+              if(itemCenterY>=zone.y)targetY=itemCenterY;
+            }
+            a.vy+=(targetY-(a.y+a.h/2))*attraction*dt;
           }
           a.x+=a.vx*dt; a.y+=a.vy*dt;
         });
