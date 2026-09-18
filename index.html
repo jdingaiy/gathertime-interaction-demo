@@ -390,6 +390,8 @@
     let selectedItem=null;
     let selectedAngle=0;
     let speakingItem=null;
+    let pendingSelection=null;
+    let selectionSwitchTimer=0;
     const FOCUS_GAP_X=30;
     const FOCUS_GAP_Y=58;
     const MEMORY_TOP_GAP=56;
@@ -546,7 +548,7 @@
       items.forEach(a=>a.el.classList.add('focus-transition'));
       focusTransitionTimer=setTimeout(()=>items.forEach(a=>a.el.classList.remove('focus-transition')),760);
     }
-    function clearSelection({animate=true,wakeItems=true,collapseZone=false}={}) {
+    function clearSelection({animate=true,wakeItems=true,collapseZone=false,preserveItem=null}={}) {
       if(!selectedItem)return;
       const previous=selectedItem;
       const previousLayout=focusLayout();
@@ -560,7 +562,7 @@
       if(collapseZone&&previousLayout){
         const collapseDistance=previousLayout.zone.height+36;
         items.forEach(a=>{
-          if(a!==previous&&a.memoryZoneSide==='below'){
+          if(a!==previous&&a!==preserveItem&&a.memoryZoneSide==='below'){
             a.y-=collapseDistance;
             a.vy=Math.min(a.vy,0);
           }
@@ -619,9 +621,7 @@
       clearTimeout(toastTimer);entryToast.classList.add('show');
       toastTimer=setTimeout(()=>entryToast.classList.remove('show'),1500);
     }
-    function selectItem(a) {
-      if(selectedItem===a){clearSelection();return;}
-      if(selectedItem)clearSelection({animate:false,wakeItems:false,collapseZone:true});
+    function activateSelection(a) {
       selectedItem=a;selectedAngle=a.angle;a.angle=0;a.vx=0;a.vy=0;
       a.z=++zCounter;a.el.style.zIndex=a.z;a.el.classList.add('is-selected');
       const meta=memoryMeta(a);
@@ -645,18 +645,40 @@
       clampCameraY();
       renderAll();
     }
+    function startSelectionSwitch(a) {
+      clearTimeout(selectionSwitchTimer);
+      pendingSelection=a;
+      a.vx=0;a.vy=0;
+      clearSelection({animate:true,wakeItems:false,collapseZone:true,preserveItem:a});
+      gatherBoostUntil=performance.now()+720;
+      wake(1200);
+      selectionSwitchTimer=setTimeout(()=>{
+        if(pendingSelection!==a)return;
+        items.forEach(item=>{
+          if(item!==a){item.vx*=.35;item.vy*=.35;}
+        });
+        pendingSelection=null;
+        activateSelection(a);
+      },820);
+    }
+    function selectItem(a) {
+      if(pendingSelection)return;
+      if(selectedItem===a){clearSelection();return;}
+      if(selectedItem){startSelectionSwitch(a);return;}
+      activateSelection(a);
+    }
     let lastFrame=performance.now();
     function physicsFrame(now) {
       const dt=Math.min(2, Math.max(.35, (now-lastFrame)/16.667));
       lastFrame=now;
       const activeDrag=items.some(a=>a.drag);
       const moving=items.some(a=>Math.hypot(a.vx,a.vy)>.025);
-      if (activeDrag || selectedItem || now<awakeUntil || moving) {
+      if (activeDrag || selectedItem || pendingSelection || now<awakeUntil || moving) {
         let cx=0, cy=0;
         items.forEach(a=>{cx+=a.x+a.w/2;cy+=a.y+a.h/2;}); cx/=items.length; cy/=items.length;
         const memoryZone=selectedItem?focusLayout().zone:null;
         items.forEach(a=>{
-          if (a.drag || a===selectedItem) return;
+          if (a.drag || a===selectedItem || a===pendingSelection) return;
           if (selectedItem || now<awakeUntil) {
             let attraction=selectedItem ? .00018 : (now<gatherBoostUntil ? .0014 : .00034);
             if(memoryZone&&a.memoryZoneSide){
@@ -675,7 +697,7 @@
           a.x+=a.vx*dt; a.y+=a.vy*dt;
         });
         if(selectedItem)pushAwayFromFocus(1,false,false);
-        resolveCollisions(items.find(a=>a.drag) || selectedItem || null, 5, false);
+        resolveCollisions(items.find(a=>a.drag) || selectedItem || pendingSelection || null, 5, false);
         if(selectedItem)pushAwayFromFocus(2,false,false);
         const damping=Math.pow(.92,dt);
         items.forEach(a=>{if(!a.drag){a.vx*=damping;a.vy*=damping;if(Math.hypot(a.vx,a.vy)<.015){a.vx=0;a.vy=0;}}});
