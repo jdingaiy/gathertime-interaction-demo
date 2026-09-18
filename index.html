@@ -32,11 +32,13 @@
     .photo.is-selected, .photo.is-selected:hover { background-image: var(--photo); background-size: cover; background-position: center; background-repeat: no-repeat; box-shadow: 0 14px 12px rgba(25,25,25,.17); }
     .thing.is-selected { z-index: 80 !important; }
     .thing.focus-transition { transition: transform .72s cubic-bezier(.22,.61,.36,1); }
-    .focus-title { position: absolute; left: -6px; top: -10px; z-index: 3; max-width: 220px; padding: 4px 7px 5px; overflow: hidden; color: #fff; background: #171717; font: 600 16px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing: -.02em; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; }
+    .focus-title { position: absolute; left: 0; top: 0; z-index: 81; max-width: 240px; color: #fff; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; pointer-events: none; transform-origin: top left; opacity: 0; animation: reveal-information .32s .1s ease forwards; }
+    .focus-title span { display: table; max-width: 100%; padding: 4px 7px 5px; overflow: hidden; background: #171717; white-space: nowrap; text-overflow: ellipsis; }
+    .focus-title-main { font-size: 16px; font-weight: 600; line-height: 1.2; letter-spacing: -.02em; }
+    .focus-title-time { margin-top: 4px; font-size: 13px; font-weight: 400; line-height: 1.2; }
     .material-symbols-rounded { font-family: "Material Symbols Rounded"; font-weight: normal; font-style: normal; font-size: 24px; line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr; -webkit-font-feature-settings: "liga"; -webkit-font-smoothing: antialiased; font-feature-settings: "liga"; }
-    .memory-card { position: absolute; left: 50%; top: calc(100% + 24px); width: min(312px, 78vw); transform: translateX(-50%); color: #171717; opacity: 0; animation: reveal-memory .38s .18s cubic-bezier(.22,.61,.36,1) forwards; pointer-events: auto; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    .memory-rule { width: 2px; height: 42px; margin: 0 0 11px 16px; background: #171717; }
-    .memory-index { margin: 0 0 18px; font-size: 48px; font-weight: 400; line-height: .95; letter-spacing: -.055em; }
+    .memory-card { position: absolute; left: 0; top: 0; z-index: 81; width: min(360px, 84vw); color: #171717; opacity: 0; animation: reveal-information .36s .14s ease forwards; pointer-events: auto; transform-origin: top left; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .memory-index { margin: 0 0 22px; font-size: 48px; font-weight: 400; line-height: .95; letter-spacing: -.055em; }
     .memory-card p { margin: 0 0 20px; color: #5d626a; font-size: 14px; line-height: 1.62; }
     .memory-actions { display: grid; grid-template-columns: minmax(0,1fr) 52px; gap: 14px; align-items: center; }
     .audio-player, .interview-entry { border: 0; color: #fff; background: linear-gradient(180deg,#555,#3f3f3f); box-shadow: 0 5px 0 rgba(33,33,33,.32), 0 8px 16px rgba(20,20,20,.12); cursor: pointer; }
@@ -52,7 +54,8 @@
     .interview-entry .material-symbols-rounded { font-size: 31px; }
     #entry-toast { position: fixed; left: 50%; bottom: 28px; z-index: 120; transform: translate(-50%,12px); padding: 9px 14px; border-radius: 999px; color: #fff; background: rgba(24,24,24,.88); opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease; font: 13px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
     #entry-toast.show { opacity: 1; transform: translate(-50%,0); }
-    @keyframes reveal-memory { from { opacity: 0; transform: translate(-50%,8px); } to { opacity: 1; transform: translate(-50%,0); } }
+    .focus-title.is-closing, .memory-card.is-closing { animation: none; opacity: 0; transition: opacity .2s ease; pointer-events: none; }
+    @keyframes reveal-information { from { opacity: 0; } to { opacity: 1; } }
     @keyframes voice-wave { from { transform: scaleY(.5); opacity: .65; } to { transform: scaleY(1); opacity: 1; } }
     #settings-button { position: fixed; top: 18px; right: 18px; width: 42px; height: 42px; z-index: 101; border: 1px solid rgba(20,20,20,.16); border-radius: 50%; background: rgba(244,243,239,.86); backdrop-filter: blur(14px); display: grid; place-items: center; padding: 0; cursor: pointer; box-shadow: 0 6px 20px rgba(30,30,30,.08); }
     #settings-button svg { width: 19px; height: 19px; stroke: var(--ink); }
@@ -121,6 +124,7 @@
       ['铁皮机器人','小时候以为它能一直走下去，直到发条慢慢停在客厅中央。'],
       ['秋天的叶子','夹在书页里的叶子已经失去颜色，但那次散步还留在记忆里。']
     ];
+    const objectTimes = ['1986年','1992年冬天','1998年夏天','2001年','20世纪70年代末','1995年','1989年','2003年','2011年秋天'];
     const photoMemories = [
       ['1998 · 家里的客厅','一家人难得都坐进同一个画面。快门落下以后，狗先跑出了镜头。'],
       ['2001 · 老街','放学后总要绕一点远路，从这条街慢慢走回家。'],
@@ -171,7 +175,7 @@
       const screenY=(a.y+a.h/2)*camera.zoom+camera.y-a.h/2;
       a.el.style.transform = `translate3d(${screenX}px,${screenY}px,0) rotate(${a.angle}deg) scale(${camera.zoom})`;
     }
-    function renderAll() { items.forEach(render); }
+    function renderAll() { items.forEach(render); renderFocusUI(); }
     function setSize(a, scale) {
       a.w = a.baseW * scale;
       a.h = a.baseH * scale;
@@ -262,8 +266,8 @@
       const polygon=worldPolygon(a);
       let minX=Math.min(...polygon.map(p=>p.x)),maxX=Math.max(...polygon.map(p=>p.x));
       if(a===selectedItem){
-        const obstacle=focusObstacle();
-        if(obstacle){minX=Math.min(minX,obstacle.x);maxX=Math.max(maxX,obstacle.x+obstacle.w);}
+        const titleBox=focusObstacles().find(box=>box.kind==='title');
+        if(titleBox){minX=Math.min(minX,titleBox.x);maxX=Math.max(maxX,titleBox.x+titleBox.w);}
       }
       let shift=0;
       if(maxX-minX>right-left)shift=(left+right-minX-maxX)/2;
@@ -384,15 +388,42 @@
     let selectedItem=null;
     let selectedAngle=0;
     let speakingItem=null;
-    const FOCUS_GAP=34;
+    const FOCUS_GAP_X=30;
+    const FOCUS_GAP_Y=58;
+    const MEMORY_TOP_GAP=56;
+    function memoryMeta(a) {
+      if(a.type==='object')return {title:a.memory[0],time:objectTimes[a.order-1]||'时间未记录'};
+      const parts=a.memory[0].split('·').map(part=>part.trim());
+      return {title:parts.slice(1).join(' · ')||parts[0],time:parts.length>1?parts[0]:'时间未记录'};
+    }
+    function focusLayout() {
+      if(!selectedItem)return null;
+      const title=selectedItem.focusTitle,card=selectedItem.memoryCard;
+      const cardWidth=card?.offsetWidth||Math.min(360,innerWidth*.84);
+      return {
+        title:{x:selectedItem.x-12,y:selectedItem.y+12,w:title?.offsetWidth||180,height:title?.offsetHeight||52},
+        card:{x:(innerWidth/2-camera.x)/camera.zoom-cardWidth/2,y:selectedItem.y+selectedItem.h+MEMORY_TOP_GAP,w:cardWidth,height:card?.offsetHeight||230}
+      };
+    }
+    function renderFocusUI() {
+      if(!selectedItem)return;
+      const layout=focusLayout();
+      if(selectedItem.focusTitle){
+        const x=layout.title.x*camera.zoom+camera.x,y=layout.title.y*camera.zoom+camera.y;
+        selectedItem.focusTitle.style.transform=`translate3d(${x}px,${y}px,0) scale(${camera.zoom})`;
+      }
+      if(selectedItem.memoryCard){
+        const x=layout.card.x*camera.zoom+camera.x,y=layout.card.y*camera.zoom+camera.y;
+        selectedItem.memoryCard.style.transform=`translate3d(${x}px,${y}px,0) scale(${camera.zoom})`;
+      }
+    }
     function focusObstacles() {
       if(!selectedItem)return [];
-      const title=selectedItem.el.querySelector('.focus-title');
-      const card=selectedItem.el.querySelector('.memory-card');
-      const boxes=[];
-      if(title)boxes.push({x:selectedItem.x+title.offsetLeft,y:selectedItem.y+title.offsetTop,w:title.offsetWidth,height:title.offsetHeight});
-      if(card)boxes.push({x:selectedItem.x+selectedItem.w/2-card.offsetWidth/2,y:selectedItem.y+selectedItem.h+24,w:card.offsetWidth,height:card.offsetHeight});
-      return boxes;
+      const layout=focusLayout();
+      return [
+        {kind:'title',x:layout.title.x,y:layout.title.y,w:layout.title.w,height:layout.title.height},
+        {kind:'card',x:layout.card.x,y:layout.card.y,w:layout.card.w,height:layout.card.height}
+      ];
     }
     function focusObstacle() {
       if(!selectedItem)return null;
@@ -421,7 +452,7 @@
         items.forEach(a=>{
           if(a===selectedItem||a.drag)return;
           obstacles.forEach(box=>{
-            const left=box.x-FOCUS_GAP,right=box.x+box.w+FOCUS_GAP,top=box.y-FOCUS_GAP,bottom=box.y+box.height+FOCUS_GAP;
+            const left=box.x-FOCUS_GAP_X,right=box.x+box.w+FOCUS_GAP_X,top=box.y-FOCUS_GAP_Y,bottom=box.y+box.height+FOCUS_GAP_Y;
             const radius=Math.hypot(a.w,a.h)*.36;
             const cx=a.x+a.w/2,cy=a.y+a.h/2;
             const nearestX=Math.max(left,Math.min(cx,right));
@@ -454,8 +485,12 @@
       if(animate)markFocusTransition();
       previous.angle=selectedAngle;
       previous.el.classList.remove('is-selected');
-      previous.el.querySelector('.focus-title')?.remove();
-      previous.el.querySelector('.memory-card')?.remove();
+      const title=previous.focusTitle,card=previous.memoryCard;
+      previous.focusTitle=null;previous.memoryCard=null;
+      if(animate){
+        title?.classList.add('is-closing');card?.classList.add('is-closing');
+        setTimeout(()=>{title?.remove();card?.remove();},210);
+      }else{title?.remove();card?.remove();}
       selectedItem=null;
       if(wakeItems){
         const cx=(-camera.x+innerWidth*.5)/camera.zoom,cy=(-camera.y+innerHeight*.48)/camera.zoom;
@@ -470,7 +505,7 @@
       return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
     }
     function updateAudioButton(a) {
-      const button=a.el.querySelector('.audio-player');
+      const button=a.memoryCard?.querySelector('.audio-player');
       if(!button)return;
       const playing=speakingItem===a&&!speechSynthesis.paused;
       button.classList.toggle('is-playing',playing);
@@ -509,18 +544,20 @@
       if(selectedItem)clearSelection({animate:false,wakeItems:false});
       selectedItem=a;selectedAngle=a.angle;a.angle=0;a.vx=0;a.vy=0;
       a.z=++zCounter;a.el.style.zIndex=a.z;a.el.classList.add('is-selected');
+      const meta=memoryMeta(a);
       const title=document.createElement('div');
       title.className='focus-title';
-      title.textContent=a.memory[0].split('·').at(-1).trim();
-      a.el.appendChild(title);
+      title.innerHTML=`<span class="focus-title-main">${meta.title}</span><span class="focus-title-time">${meta.time}</span>`;
+      scene.appendChild(title);a.focusTitle=title;
       const card=document.createElement('div');
       card.className='memory-card';
       const bars=[7,13,10,18,9,15,23,12,20,26,17,24,13,21,9,16,7,11];
-      card.innerHTML=`<div class="memory-rule"></div><div class="memory-index">${String(a.order).padStart(2,'0')}</div><p>${a.memory[1]}</p><div class="memory-actions"><button class="audio-player" type="button" aria-label="播放${a.memory[0]}的录音"><span class="audio-toggle"><span class="material-symbols-rounded" aria-hidden="true">play_arrow</span></span><span class="waveform" aria-hidden="true">${bars.map((height,index)=>`<i style="--h:${height}px;--i:${index}"></i>`).join('')}</span><span class="audio-time">0:00</span></button><button class="interview-entry" type="button" aria-label="进入录音或 AI 语音采访"><span class="material-symbols-rounded" aria-hidden="true">mic</span></button></div>`;
+      card.innerHTML=`<div class="memory-index">${String(a.order).padStart(2,'0')}</div><p>${a.memory[1]}</p><div class="memory-actions"><button class="audio-player" type="button" aria-label="播放${a.memory[0]}的录音"><span class="audio-toggle"><span class="material-symbols-rounded" aria-hidden="true">play_arrow</span></span><span class="waveform" aria-hidden="true">${bars.map((height,index)=>`<i style="--h:${height}px;--i:${index}"></i>`).join('')}</span><span class="audio-time">0:00</span></button><button class="interview-entry" type="button" aria-label="进入录音或 AI 语音采访"><span class="material-symbols-rounded" aria-hidden="true">mic</span></button></div>`;
       card.addEventListener('pointerdown',event=>event.stopPropagation());
       card.querySelector('.audio-player').addEventListener('click',()=>toggleMemoryAudio(a));
       card.querySelector('.interview-entry').addEventListener('click',showEntryToast);
-      a.el.appendChild(card);
+      scene.appendChild(card);a.memoryCard=card;
+      renderFocusUI();
       markFocusTransition();
       pushAwayFromFocus();
       setTimeout(()=>{if(selectedItem===a)pushAwayFromFocus(8);},180);
