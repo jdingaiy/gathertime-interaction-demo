@@ -105,6 +105,7 @@
     let awakeUntil = 0;
     let gatherBoostUntil = 0;
     let toastTimer = 0;
+    let focusTransitionTimer = 0;
     const objectAssets = window.OBJECT_ASSETS || [];
     const tones = ['#c59b72','#c47c68','#a9a06a','#a8889d','#82a49a','#b66e5c','#91a5b3','#c39a58','#a98272'];
     const photos = [
@@ -541,12 +542,14 @@
       a.memoryRevealTimer=setTimeout(()=>revealMemoryWhenClear(a),100);
     }
     function markFocusTransition() {
+      clearTimeout(focusTransitionTimer);
       items.forEach(a=>a.el.classList.add('focus-transition'));
-      setTimeout(()=>items.forEach(a=>a.el.classList.remove('focus-transition')),760);
+      focusTransitionTimer=setTimeout(()=>items.forEach(a=>a.el.classList.remove('focus-transition')),760);
     }
-    function clearSelection({animate=true,wakeItems=true}={}) {
+    function clearSelection({animate=true,wakeItems=true,collapseZone=false}={}) {
       if(!selectedItem)return;
       const previous=selectedItem;
+      const previousLayout=focusLayout();
       stopMemoryAudio();
       clearTimeout(previous.memoryRevealTimer);
       if(animate)markFocusTransition();
@@ -554,6 +557,15 @@
       previous.el.classList.remove('is-selected');
       const title=previous.focusTitle,card=previous.memoryCard;
       previous.focusTitle=null;previous.memoryCard=null;
+      if(collapseZone&&previousLayout){
+        const collapseDistance=previousLayout.zone.height+36;
+        items.forEach(a=>{
+          if(a!==previous&&a.memoryZoneSide==='below'){
+            a.y-=collapseDistance;
+            a.vy=Math.min(a.vy,0);
+          }
+        });
+      }
       items.forEach(a=>delete a.memoryZoneSide);
       if(animate){
         title?.classList.add('is-closing');card?.classList.add('is-closing');
@@ -609,7 +621,7 @@
     }
     function selectItem(a) {
       if(selectedItem===a){clearSelection();return;}
-      if(selectedItem)clearSelection({animate:false,wakeItems:false});
+      if(selectedItem)clearSelection({animate:false,wakeItems:false,collapseZone:true});
       selectedItem=a;selectedAngle=a.angle;a.angle=0;a.vx=0;a.vy=0;
       a.z=++zCounter;a.el.style.zIndex=a.z;a.el.classList.add('is-selected');
       const meta=memoryMeta(a);
