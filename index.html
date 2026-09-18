@@ -453,14 +453,34 @@
       if(minY>maxY){camera.y=(minY+maxY)/2;return;}
       camera.y=Math.max(minY,Math.min(maxY,camera.y));
     }
-    function moveBelowMemoryZone(a,box) {
+    function initializeMemoryZoneSides() {
+      if(!selectedItem)return;
+      const zone=focusLayout().zone;
+      items.forEach(a=>{
+        if(a===selectedItem)return;
+        const radius=Math.hypot(a.w,a.h)/2;
+        const cy=a.y+a.h/2;
+        a.memoryZoneSide=cy+radius<=zone.y?'above':'below';
+      });
+    }
+    function constrainToMemoryZone(a,box) {
       if(a===selectedItem||a.drag)return false;
       const radius=Math.hypot(a.w,a.h)/2;
       const cy=a.y+a.h/2;
       const itemTop=cy-radius,itemBottom=cy+radius;
       const zoneBottom=box.y+box.height;
-      if(itemBottom<=box.y||itemTop>=zoneBottom)return false;
-      a.y+=zoneBottom+18-itemTop;
+      if(a.memoryZoneSide==='above'&&itemTop>=zoneBottom)a.memoryZoneSide='below';
+      else if(a.memoryZoneSide==='below'&&itemBottom<=box.y)a.memoryZoneSide='above';
+      if(a.memoryZoneSide==='above'){
+        const ceiling=box.y-18;
+        if(itemBottom<=ceiling)return false;
+        a.y+=ceiling-itemBottom;
+        a.vy=Math.min(a.vy,0);
+        return true;
+      }
+      const floor=zoneBottom+18;
+      if(itemTop>=floor)return false;
+      a.y+=floor-itemTop;
       a.vy=Math.max(a.vy,0);
       return true;
     }
@@ -473,7 +493,7 @@
           if(a===selectedItem||a.drag)return;
           obstacles.forEach(box=>{
             if(box.kind==='memory-zone'){
-              if(moveBelowMemoryZone(a,box))changed=true;
+              if(constrainToMemoryZone(a,box))changed=true;
               return;
             }
             const left=box.x-FOCUS_GAP_X,right=box.x+box.w+FOCUS_GAP_X,top=box.y-FOCUS_GAP_Y,bottom=box.y+box.height+FOCUS_GAP_Y;
@@ -496,7 +516,7 @@
         if(!changed&&!resolveAfter)break;
       }
       const memoryZone=obstacles.find(box=>box.kind==='memory-zone');
-      if(memoryZone)items.forEach(a=>moveBelowMemoryZone(a,memoryZone));
+      if(memoryZone)items.forEach(a=>constrainToMemoryZone(a,memoryZone));
       items.forEach(a=>constrainHorizontal(a));
       if(renderAfter)renderAll();
     }
@@ -534,6 +554,7 @@
       previous.el.classList.remove('is-selected');
       const title=previous.focusTitle,card=previous.memoryCard;
       previous.focusTitle=null;previous.memoryCard=null;
+      items.forEach(a=>delete a.memoryZoneSide);
       if(animate){
         title?.classList.add('is-closing');card?.classList.add('is-closing');
         setTimeout(()=>{title?.remove();card?.remove();},210);
@@ -605,6 +626,7 @@
       card.querySelector('.interview-entry').addEventListener('click',showEntryToast);
       scene.appendChild(card);a.memoryCard=card;
       renderFocusUI();
+      initializeMemoryZoneSides();
       markFocusTransition();
       pushAwayFromFocus();
       a.memoryRevealTimer=setTimeout(()=>revealMemoryWhenClear(a),760);
@@ -620,16 +642,21 @@
       if (activeDrag || selectedItem || now<awakeUntil || moving) {
         let cx=0, cy=0;
         items.forEach(a=>{cx+=a.x+a.w/2;cy+=a.y+a.h/2;}); cx/=items.length; cy/=items.length;
+        const memoryZone=selectedItem?focusLayout().zone:null;
         items.forEach(a=>{
           if (a.drag || a===selectedItem) return;
           if (selectedItem || now<awakeUntil) {
-            const attraction=selectedItem ? .00018 : (now<gatherBoostUntil ? .0014 : .00034);
+            let attraction=selectedItem ? .00018 : (now<gatherBoostUntil ? .0014 : .00034);
+            if(memoryZone&&a.memoryZoneSide){
+              const radius=Math.hypot(a.w,a.h)/2;
+              const itemTop=a.y+a.h/2-radius,itemBottom=a.y+a.h/2+radius;
+              const distance=a.memoryZoneSide==='above'?memoryZone.y-itemBottom:itemTop-(memoryZone.y+memoryZone.height);
+              if(distance<120/camera.zoom)attraction*=.08;
+            }
             a.vx+=(cx-(a.x+a.w/2))*attraction*dt;
             let targetY=cy;
             if(selectedItem){
-              const zone=focusLayout().zone;
-              const itemCenterY=a.y+a.h/2;
-              if(itemCenterY>=zone.y)targetY=itemCenterY;
+              if(a.memoryZoneSide)targetY=a.y+a.h/2;
             }
             a.vy+=(targetY-(a.y+a.h/2))*attraction*dt;
           }
