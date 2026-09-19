@@ -15,7 +15,9 @@
     body { background: #fff; cursor: default; }
     #scene { position: relative; width: 100vw; height: 100vh; overflow: hidden; isolation: isolate; opacity: 1; cursor: grab; touch-action: none; }
     #scene.panning { cursor: grabbing; }
-    .thing { position: absolute; left: 0; top: 0; transform-origin: center; user-select: none; touch-action: none; pointer-events: none; will-change: transform; z-index: 2; }
+    .thing { position: absolute; left: 0; top: 0; transform-origin: center; user-select: none; touch-action: none; pointer-events: none; will-change: transform,opacity; z-index: 2; }
+    .thing.detail-return-fade { transition: opacity .48s ease; }
+    .thing.detail-return-hidden { opacity: 0; }
     .thing.object { width: 170px; height: 170px; }
     .thing.photo { border-radius: 3px; }
     .object .asset-state { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; filter: drop-shadow(0 5px 5px rgba(25,25,25,.08)); transition: opacity .1s ease; }
@@ -364,6 +366,7 @@
       });
       resolveCollisions(null,16);
     }
+    let returnPinned=null;
     function resolveCollisions(dragged, passes=8, renderAfter=true) {
       for (let pass=0; pass<passes; pass++) {
         let changed = false;
@@ -373,8 +376,8 @@
             const hit=collisionMTV(a,b);
             if(!hit)continue;
             const {nx,ny,depth:overlap}=hit;
-            if (a === selectedItem && a !== dragged) { b.x += nx*overlap; b.y += ny*overlap; b.vx += nx*overlap*.045; b.vy += ny*overlap*.045; }
-            else if (b === selectedItem && b !== dragged) { a.x -= nx*overlap; a.y -= ny*overlap; a.vx -= nx*overlap*.045; a.vy -= ny*overlap*.045; }
+            if ((a === selectedItem || a === returnPinned) && a !== dragged) { b.x += nx*overlap; b.y += ny*overlap; b.vx += nx*overlap*.045; b.vy += ny*overlap*.045; }
+            else if ((b === selectedItem || b === returnPinned) && b !== dragged) { a.x -= nx*overlap; a.y -= ny*overlap; a.vx -= nx*overlap*.045; a.vy -= ny*overlap*.045; }
             else if (a === dragged) { b.x += nx*overlap; b.y += ny*overlap; b.vx += nx*overlap*.045; b.vy += ny*overlap*.045; }
             else if (b === dragged) { a.x -= nx*overlap; a.y -= ny*overlap; a.vx -= nx*overlap*.045; a.vy -= ny*overlap*.045; }
             else {
@@ -692,7 +695,7 @@
         items.forEach(a=>{cx+=a.x+a.w/2;cy+=a.y+a.h/2;}); cx/=items.length; cy/=items.length;
         const memoryZone=selectedItem?focusLayout().zone:null;
         items.forEach(a=>{
-          if (a.drag || a===selectedItem || a===pendingSelection) return;
+          if (a.drag || a===selectedItem || a===pendingSelection || a===returnPinned) return;
           if (selectedItem || now<awakeUntil) {
             let attraction=selectedItem ? .00018 : (now<gatherBoostUntil ? .0014 : .00034);
             if(memoryZone&&a.memoryZoneSide){
@@ -711,7 +714,7 @@
           a.x+=a.vx*dt; a.y+=a.vy*dt;
         });
         if(selectedItem)pushAwayFromFocus(1,false,false);
-        resolveCollisions(items.find(a=>a.drag) || selectedItem || pendingSelection || null, 5, false);
+        resolveCollisions(items.find(a=>a.drag) || selectedItem || pendingSelection || returnPinned || null, 5, false);
         if(selectedItem)pushAwayFromFocus(2,false,false);
         const damping=Math.pow(.92,dt);
         items.forEach(a=>{if(!a.drag){a.vx*=damping;a.vy*=damping;if(Math.hypot(a.vx,a.vy)<.015){a.vx=0;a.vy=0;}}});
@@ -857,9 +860,29 @@
       a.memory[1]=summary;
       a.memoryCard?.querySelector('p')?.replaceChildren(document.createTextNode(summary));
     }
+    function returnFromDetail(a,point) {
+      if(!a)return;
+      clearTimeout(selectionSwitchTimer);pendingSelection=null;
+      clearSelection({animate:false,wakeItems:false,collapseZone:true,preserveItem:a});
+      returnPinned=a;a.vx=0;a.vy=0;a.angle=0;
+      a.x=(point.x-camera.x)/camera.zoom-a.w/2;
+      a.y=(point.y-camera.y)/camera.zoom-a.h/2;
+      constrainHorizontal(a,false);render(a);
+      items.forEach(item=>{
+        if(item===a)return;
+        item.el.classList.add('detail-return-fade','detail-return-hidden');
+      });
+      requestAnimationFrame(()=>requestAnimationFrame(()=>items.forEach(item=>item.el.classList.remove('detail-return-hidden'))));
+      setTimeout(()=>{
+        items.forEach(item=>item.el.classList.remove('detail-return-fade','detail-return-hidden'));
+        returnPinned=null;
+        gatherBoostUntil=performance.now()+900;wake(1500);
+      },560);
+    }
     window.GatherHome={
       addCaptured:addCapturedItem,
       updateMemory:updateItemMemory,
+      returnFromDetail,
       closeFocus:()=>clearSelection(),
       hasItem:(type,sourceIndex)=>items.some(a=>a.type===type&&a.sourceIndex===sourceIndex)
     };
