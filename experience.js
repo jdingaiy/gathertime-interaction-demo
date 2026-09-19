@@ -101,22 +101,21 @@
 
   const root = document.createElement('div');
   root.id = 'experience-root';
+  root.className = 'is-home';
   root.innerHTML = `
     <section id="capture-view" class="experience-view" aria-hidden="true">
       <header class="experience-header is-light"><button class="icon-button capture-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header>
       <div class="capture-shell">
-        <div class="camera-stage"><div class="camera-grid"></div><div class="camera-guide object-mode"></div><div class="camera-hint">将物品放在轮廓中央，保持背景简洁</div><div class="capture-modes"><button class="capture-mode is-active" data-mode="object">收藏物品</button><button class="capture-mode" data-mode="photo">扫描照片</button></div></div>
+        <div class="camera-stage"><div class="camera-grid"></div><div class="camera-guide object-mode"></div><div class="camera-hint">将物品放在轮廓中央，保持背景简洁</div><div class="capture-modes"><button class="capture-mode is-active" data-mode="object">收藏物品</button><button class="capture-mode" data-mode="photo">扫描照片</button></div><div class="capture-processing" aria-hidden="true"><img alt=""><i></i></div></div>
         <div class="capture-controls"><span></span><button class="shutter" aria-label="拍摄"></button><label class="repair-toggle"><span>AI 修复</span><button class="switch" type="button" aria-label="切换 AI 修复"></button></label></div>
       </div>
-      <div class="capture-result"><div><img class="capture-result-visual" alt="拍摄结果"><div class="repair-scan"></div></div><div class="result-copy"><h2></h2><p></p><div class="result-actions"><button class="secondary-button retake-button">重新拍摄</button><button class="primary-button capture-continue">继续</button></div></div></div>
     </section>
     <section id="interview-view" class="experience-view" aria-hidden="true">
       <header class="experience-header"><button class="icon-button interview-back" aria-label="返回"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header>
-      <div class="interview-shell"><div class="ripple-field"><span></span><span></span><span></span><span></span></div><img class="subject-float" alt="采访对象">
+      <div class="interview-shell"><div class="subject-stage"><div class="ripple-field"><span></span><span></span><span></span><span></span></div><img class="subject-float" alt="采访对象"></div>
         <div class="interview-panel">
-          <div class="interview-setup"><div class="mode-switcher"><button data-mode="record" class="is-active">普通录音</button><button data-mode="ai">AI 访谈</button></div><div class="interview-copy"><div class="eyebrow">ORAL HISTORY</div><h1>把这段记忆说下来</h1><p>录下你和家人的讲述，结束后会整理为一篇可阅读的口述史。</p></div><button class="record-button start-interview" aria-label="开始"><span class="material-symbols-rounded">mic</span></button></div>
-          <div class="interview-running"><div class="question-number"></div><div class="question-text"></div><div class="live-wave">${bars.map((h,i)=>`<i style="--h:${h}px;--i:${i}"></i>`).join('')}</div><div class="record-meta">00:00</div><div class="finish-row"><button class="primary-button next-answer">结束录音</button></div></div>
-          <div class="interview-complete"><div class="complete-mark"><span class="material-symbols-rounded">check</span></div><div class="interview-copy"><div class="eyebrow">MEMORY SAVED</div><h1>这段记忆已经整理好了</h1><p>录音已保留，并生成了一篇口述史。你可以继续阅读，也可以回到主页。</p></div><div class="finish-row"><button class="secondary-button complete-home">回到主页</button><button class="primary-button complete-detail">查看口述史</button></div></div>
+          <div class="interview-ready"><div class="mode-switcher" role="tablist" aria-label="录音模式"><button data-mode="record" class="is-active" role="tab" aria-label="多人录音" aria-selected="true"><span class="material-symbols-rounded">group</span></button><button data-mode="ai" role="tab" aria-label="AI 访谈" aria-selected="false"><span class="material-symbols-rounded">blur_on</span></button></div><div class="mode-dots" aria-hidden="true"><i class="is-active"></i><i></i></div><button class="record-button start-interview" aria-label="开始录音"><span class="material-symbols-rounded">mic</span></button></div>
+          <div class="interview-running"><div class="question-number"></div><div class="question-text"></div><div class="live-wave">${bars.map((h,i)=>`<i style="--h:${h}px;--i:${i}"></i>`).join('')}</div><div class="record-meta">00:00</div><div class="finish-row"><button class="record-button next-answer" aria-label="结束录音"><span class="material-symbols-rounded">stop</span></button></div></div>
         </div>
       </div>
     </section>
@@ -135,6 +134,8 @@
   let interviewSeconds = 0;
   let questionIndex = 0;
   let toastTimer = 0;
+  let captureTimer = 0;
+  let swipeStartX = null;
 
   const subjectFromItem = item => {
     const key = `${item.type}-${item.sourceIndex}`;
@@ -151,10 +152,18 @@
   }
   function showView(name) {
     currentView=name;
+    root.classList.toggle('is-home',name==='home');
     views.forEach(view=>{const active=view.id===`${name}-view`;view.classList.toggle('is-active',active);view.setAttribute('aria-hidden',String(!active));});
     document.body.classList.toggle('experience-open',name!=='home');
   }
   function goHome() { stopInterviewTimer(); showView('home'); window.GatherHome?.closeFocus(); }
+  function returnHomeFromDetail() {
+    stopInterviewTimer();
+    const image=$('.detail-subject');
+    const rect=image?.getBoundingClientRect();
+    if(rect&&currentSubject?.item)window.GatherHome?.returnFromDetail(currentSubject.item,{x:rect.left+rect.width/2,y:rect.top+rect.height/2});
+    showView('home');
+  }
 
   function setCaptureMode(mode) {
     captureMode=mode;
@@ -165,36 +174,36 @@
   }
   function showCaptureResult() {
     currentSubject=capturedSubject(captureMode);
-    const result=$('.capture-result'),image=$('.capture-result-visual');
-    image.src=currentSubject.src;
-    image.className=`capture-result-visual ${captureMode==='photo'&&!repairEnabled?'scan-before':''}`;
-    result.classList.toggle('is-repairing',captureMode==='photo'&&repairEnabled);
-    if(captureMode==='photo'&&repairEnabled)setTimeout(()=>{
-      image.classList.add('scan-repaired');result.classList.remove('is-repairing');
-      $('.result-copy p').textContent='AI 修复完成，褪色、划痕和清晰度已经优化。';
-    },1100);
-    $('.result-copy h2').textContent=captureMode==='object'?'已抠除物品主体':'老照片扫描完成';
-    $('.result-copy p').textContent=captureMode==='object'?'背景已经移除，可以继续记录它的故事。':repairEnabled?'正在修复褪色、划痕与清晰度。':'已完成边缘识别和透视校正。';
-    result.classList.add('is-visible');
+    const processing=$('.capture-processing');
+    processing.querySelector('img').src=currentSubject.src;
+    processing.classList.toggle('is-repairing',captureMode==='photo'&&repairEnabled);
+    processing.classList.add('is-visible');
+    $('.shutter').disabled=true;
+    clearTimeout(captureTimer);
+    captureTimer=setTimeout(()=>{
+      processing.classList.remove('is-visible','is-repairing');
+      $('.shutter').disabled=false;
+      openInterview(currentSubject);
+    },captureMode==='photo'&&repairEnabled?900:260);
   }
   function openCapture() {
-    window.GatherHome?.closeFocus(); repairEnabled=false;$('.switch').classList.remove('is-on');$('.capture-result').classList.remove('is-visible','is-repairing');setCaptureMode('object');showView('capture');
+    window.GatherHome?.closeFocus();repairEnabled=false;clearTimeout(captureTimer);$('.switch').classList.remove('is-on');$('.capture-processing').classList.remove('is-visible','is-repairing');$('.shutter').disabled=false;setCaptureMode('object');showView('capture');
   }
 
   function configureInterview(subject) {
     currentSubject=subject;
     $('.subject-float').src=subject.src;
-    $('.interview-setup').classList.remove('is-hidden');
+    $('.interview-ready').classList.remove('is-hidden');
     $('.interview-running').classList.remove('is-visible');
-    $('.interview-complete').classList.remove('is-visible');
+    $('.interview-shell').classList.remove('is-recording');
     setInterviewMode('record');
   }
   function setInterviewMode(mode) {
+    if($('.interview-shell').classList.contains('is-recording'))return;
     interviewMode=mode;
-    root.querySelectorAll('.mode-switcher button').forEach(button=>button.classList.toggle('is-active',button.dataset.mode===mode));
+    root.querySelectorAll('.mode-switcher button').forEach(button=>{const active=button.dataset.mode===mode;button.classList.toggle('is-active',active);button.setAttribute('aria-selected',String(active));});
+    root.querySelectorAll('.mode-dots i').forEach((dot,index)=>dot.classList.toggle('is-active',index===(mode==='record'?0:1)));
     $('.ripple-field').classList.toggle('is-visible',mode==='ai');
-    $('.interview-copy h1').textContent=mode==='ai'?'让问题带你回到那一刻':'把这段记忆说下来';
-    $('.interview-copy p').textContent=mode==='ai'?'AI 会围绕这件物品逐步提问，不打断你的讲述。':'录下你和家人的讲述，结束后会整理为一篇可阅读的口述史。';
   }
   function openInterview(itemOrSubject) {
     const subject=itemOrSubject?.el?subjectFromItem(itemOrSubject):itemOrSubject;
@@ -203,18 +212,19 @@
   }
   function startInterview() {
     interviewSeconds=0;questionIndex=0;
-    $('.interview-setup').classList.add('is-hidden');$('.interview-running').classList.add('is-visible');
-    $('.question-number').textContent=interviewMode==='ai'?'QUESTION 01':'RECORDING';
-    $('.question-text').textContent=interviewMode==='ai'?questions[0]:'正在记录你们的讲述';
-    $('.next-answer').textContent=interviewMode==='ai'?'说完了':'结束录音';
+    $('.interview-ready').classList.add('is-hidden');$('.interview-running').classList.add('is-visible');$('.interview-shell').classList.add('is-recording');
+    $('.question-number').textContent=interviewMode==='ai'?'01':'';
+    $('.question-text').textContent=interviewMode==='ai'?questions[0]:'';
+    $('.next-answer').setAttribute('aria-label',interviewMode==='ai'?'完成当前回答':'结束录音');
+    $('.next-answer .material-symbols-rounded').textContent=interviewMode==='ai'?'arrow_forward':'stop';
     $('.record-meta').textContent='00:00';
     interviewTimer=setInterval(()=>{interviewSeconds++;$('.record-meta').textContent=`${String(Math.floor(interviewSeconds/60)).padStart(2,'0')}:${String(interviewSeconds%60).padStart(2,'0')}`;},1000);
   }
   function stopInterviewTimer(){clearInterval(interviewTimer);interviewTimer=0;}
   function nextInterviewStep() {
     if(interviewMode==='ai'&&questionIndex<questions.length-1){
-      questionIndex++;$('.question-number').textContent=`QUESTION ${String(questionIndex+1).padStart(2,'0')}`;$('.question-text').textContent='正在整理你的回答…';
-      setTimeout(()=>{if(currentView==='interview')$('.question-text').textContent=questions[questionIndex];},620);return;
+      questionIndex++;$('.question-number').textContent=String(questionIndex+1).padStart(2,'0');$('.question-text').classList.add('is-changing');
+      setTimeout(()=>{if(currentView==='interview'){$('.question-text').textContent=questions[questionIndex];$('.question-text').classList.remove('is-changing');if(questionIndex===questions.length-1){$('.next-answer').setAttribute('aria-label','结束访谈');$('.next-answer .material-symbols-rounded').textContent='stop';}}},220);return;
     }
     finishInterview();
   }
@@ -230,8 +240,7 @@
   }
   function finishInterview() {
     stopInterviewTimer();ensureSubjectOnHome();
-    $('.interview-running').classList.remove('is-visible');$('.interview-complete').classList.add('is-visible');
-    $('.ripple-field').classList.toggle('is-visible',interviewMode==='ai');
+    openDetail(currentSubject);
   }
 
   function audioMarkup(duration) {
@@ -251,7 +260,7 @@
     currentSubject=subject;
     const history=subject.history||histories[subject.key];
     const duration=88+(subject.sourceIndex*17)%92;
-    $('.detail-page').innerHTML=`<div class="detail-hero"><img class="detail-subject" src="${subject.src}" alt="${subject.title}"><span class="detail-label">${subject.title}</span><span class="detail-time">${subject.time}</span></div><div class="detail-number">${String(subject.order||1).padStart(2,'0')}</div><h1 class="detail-title">${history.title}</h1><p class="detail-deck">${history.deck}</p>${audioMarkup(duration)}<div class="detail-body">${history.paragraphs.map((p,i)=>`${i===1?'<h2>记忆里的细节</h2>':''}<p>${p}</p>`).join('')}</div>`;
+    $('.detail-page').innerHTML=`<div class="detail-hero"><div class="detail-meta"><span class="detail-label">${subject.title}</span><span class="detail-time">${subject.time}</span></div><img class="detail-subject" src="${subject.src}" alt="${subject.title}"></div><div class="detail-number">${String(subject.order||1).padStart(2,'0')}</div><h1 class="detail-title">${history.title}</h1><p class="detail-deck">${history.deck}</p>${audioMarkup(duration)}<div class="detail-body">${history.paragraphs.map((p,i)=>`${i===1?'<h2>记忆里的细节</h2>':''}<p>${p}</p>`).join('')}</div>`;
     bindSilentAudio($('.detail-audio'),duration);showView('detail');$('.experience-scroll').scrollTop=0;
   }
 
@@ -262,15 +271,14 @@
   root.querySelectorAll('.capture-mode').forEach(button=>button.addEventListener('click',()=>setCaptureMode(button.dataset.mode)));
   $('.switch').addEventListener('click',()=>{repairEnabled=!repairEnabled;$('.switch').classList.toggle('is-on',repairEnabled);});
   $('.shutter').addEventListener('click',showCaptureResult);
-  $('.retake-button').addEventListener('click',()=>$('.capture-result').classList.remove('is-visible','is-repairing'));
-  $('.capture-continue').addEventListener('click',()=>openInterview(currentSubject));
   $('.interview-back').addEventListener('click',()=>{stopInterviewTimer();showView(currentSubject?.item?'home':'capture');});
   root.querySelectorAll('.mode-switcher button').forEach(button=>button.addEventListener('click',()=>setInterviewMode(button.dataset.mode)));
+  $('.interview-shell').addEventListener('pointerdown',event=>{if(!event.target.closest('button')&&!$('.interview-shell').classList.contains('is-recording'))swipeStartX=event.clientX;});
+  $('.interview-shell').addEventListener('pointerup',event=>{if(swipeStartX===null)return;const delta=event.clientX-swipeStartX;swipeStartX=null;if(Math.abs(delta)>44)setInterviewMode(delta<0?'ai':'record');});
+  $('.interview-shell').addEventListener('pointercancel',()=>{swipeStartX=null;});
   $('.start-interview').addEventListener('click',startInterview);
   $('.next-answer').addEventListener('click',nextInterviewStep);
-  $('.complete-home').addEventListener('click',goHome);
-  $('.complete-detail').addEventListener('click',()=>openDetail(currentSubject));
-  $('.detail-back').addEventListener('click',goHome);
+  $('.detail-back').addEventListener('click',returnHomeFromDetail);
 
   window.GatherExperience={openCapture,openInterview,openDetail};
 })();
