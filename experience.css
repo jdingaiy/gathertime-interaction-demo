@@ -160,7 +160,7 @@ body.experience-open #settings-panel { opacity: 0; pointer-events: none; }
 .share-loading { position: absolute; inset: 0; display: grid; place-items: center; color: #888; font-size: 13px; }
 .share-preview-wrap.is-ready .share-loading { display: none; }
 .share-actions { display: flex; justify-content: center; gap: 10px; margin: 22px auto 0; }
-.share-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.share-actions button,.share-actions a { display: inline-flex; align-items: center; justify-content: center; gap: 7px; text-decoration: none; }
 .share-actions .material-symbols-rounded { font-size: 20px; }
 @media (max-width:600px) {
   #home-brand { width: 88px; left: 16px; top: 16px; }
@@ -178,7 +178,7 @@ body.experience-open #settings-panel { opacity: 0; pointer-events: none; }
   .share-shell { padding: 84px 16px 54px; }
   .share-preview-wrap { width: min(88vw,420px); }
   .share-actions { flex-direction: column-reverse; width: min(88vw,420px); }
-  .share-actions button { width: 100%; }
+  .share-actions button,.share-actions a { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   *,*::before,*::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
