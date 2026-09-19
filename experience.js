@@ -169,7 +169,10 @@
     image.src=currentSubject.src;
     image.className=`capture-result-visual ${captureMode==='photo'&&!repairEnabled?'scan-before':''}`;
     result.classList.toggle('is-repairing',captureMode==='photo'&&repairEnabled);
-    if(captureMode==='photo'&&repairEnabled)setTimeout(()=>{image.classList.add('scan-repaired');result.classList.remove('is-repairing');},1100);
+    if(captureMode==='photo'&&repairEnabled)setTimeout(()=>{
+      image.classList.add('scan-repaired');result.classList.remove('is-repairing');
+      $('.result-copy p').textContent='AI 修复完成，褪色、划痕和清晰度已经优化。';
+    },1100);
     $('.result-copy h2').textContent=captureMode==='object'?'已抠除物品主体':'老照片扫描完成';
     $('.result-copy p').textContent=captureMode==='object'?'背景已经移除，可以继续记录它的故事。':repairEnabled?'正在修复褪色、划痕与清晰度。':'已完成边缘识别和透视校正。';
     result.classList.add('is-visible');
@@ -252,7 +255,9 @@
     bindSilentAudio($('.detail-audio'),duration);showView('detail');$('.experience-scroll').scrollTop=0;
   }
 
-  document.querySelector('#add-memory-button').addEventListener('click',openCapture);
+  document.addEventListener('click',event=>{
+    if(event.target.closest('#add-memory-button'))openCapture();
+  });
   $('.capture-back').addEventListener('click',goHome);
   root.querySelectorAll('.capture-mode').forEach(button=>button.addEventListener('click',()=>setCaptureMode(button.dataset.mode)));
   $('.switch').addEventListener('click',()=>{repairEnabled=!repairEnabled;$('.switch').classList.toggle('is-on',repairEnabled);});
