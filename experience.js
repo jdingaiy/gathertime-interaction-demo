@@ -294,7 +294,12 @@
   function openShareGame() { showView('share');$('.share-preview-wrap').classList.remove('is-ready');generateShareGame(); }
   function downloadShareGame() {
     if(!shareDataUrl)return;
-    const link=document.createElement('a');link.href=shareDataUrl;link.download=`GatherTime-人生游戏-${Date.now()}.png`;link.click();
+    $('.share-canvas').toBlob(blob=>{
+      if(!blob)return;
+      const url=URL.createObjectURL(blob),link=document.createElement('a');
+      link.href=url;link.download=`GatherTime-人生游戏-${Date.now()}.png`;document.body.appendChild(link);link.click();link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+    },'image/png');
   }
   function bindSilentAudio(button,duration) {
     let playing=false,elapsed=0,timer=0;
