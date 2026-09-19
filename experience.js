@@ -120,7 +120,7 @@
       </div>
     </section>
     <section id="detail-view" class="experience-view" aria-hidden="true"><header class="experience-header"><button class="icon-button detail-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header><div class="experience-scroll"><article class="detail-page"></article></div></section>
-    <section id="share-view" class="experience-view" aria-hidden="true"><header class="experience-header"><button class="icon-button share-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header><div class="share-shell"><div class="share-heading"><div class="eyebrow">LIFE AS A GAME</div><h1>这一局，是我们走过的人生</h1></div><div class="share-preview-wrap"><div class="share-loading">正在整理回忆…</div><img class="share-preview" alt="人生游戏回忆分享图"></div><div class="share-actions"><button class="secondary-button share-reroll"><span class="material-symbols-rounded">casino</span>换一组</button><button class="primary-button share-download"><span class="material-symbols-rounded">download</span>下载分享图</button></div><canvas class="share-canvas" width="1080" height="1350" hidden></canvas></div></section>
+    <section id="share-view" class="experience-view" aria-hidden="true"><header class="experience-header"><button class="icon-button share-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header><div class="share-shell"><div class="share-heading"><div class="eyebrow">LIFE AS A GAME</div><h1>这一局，是我们走过的人生</h1></div><div class="share-preview-wrap"><div class="share-loading">正在整理回忆…</div><img class="share-preview" alt="人生游戏回忆分享图"></div><div class="share-actions"><button class="secondary-button share-reroll"><span class="material-symbols-rounded">casino</span>换一组</button><a class="primary-button share-download" href="#" download="GatherTime-人生游戏.png"><span class="material-symbols-rounded">download</span>下载分享图</a></div><canvas class="share-canvas" width="1080" height="1350" hidden></canvas></div></section>
     <div class="toast-message"></div>`;
   document.body.appendChild(root);
 
@@ -138,6 +138,7 @@
   let captureTimer = 0;
   let swipeStartX = null;
   let shareDataUrl = '';
+  let shareBlobUrl = '';
 
   const subjectFromItem = item => {
     const key = `${item.type}-${item.sourceIndex}`;
@@ -289,18 +290,15 @@
     }
     ctx.fillStyle='#171717';ctx.font='500 22px system-ui, sans-serif';ctx.fillText(`本局收集 ${chosen.length} 段回忆 · ${new Date().getFullYear()}`,78,1245);
     ctx.font='400 18px system-ui, sans-serif';ctx.fillStyle='#777';ctx.fillText('每一次讲述，都会让这张棋盘继续生长。',78,1284);
-    shareDataUrl=canvas.toDataURL('image/png');$('.share-preview').src=shareDataUrl;$('.share-preview-wrap').classList.add('is-ready');
-  }
-  function openShareGame() { showView('share');$('.share-preview-wrap').classList.remove('is-ready');generateShareGame(); }
-  function downloadShareGame() {
-    if(!shareDataUrl)return;
-    $('.share-canvas').toBlob(blob=>{
-      if(!blob)return;
-      const url=URL.createObjectURL(blob),link=document.createElement('a');
-      link.href=url;link.download=`GatherTime-人生游戏-${Date.now()}.png`;document.body.appendChild(link);link.click();link.remove();
-      setTimeout(()=>URL.revokeObjectURL(url),1000);
+    shareDataUrl=canvas.toDataURL('image/png');$('.share-preview').src=shareDataUrl;
+    canvas.toBlob(blob=>{
+      if(shareBlobUrl)URL.revokeObjectURL(shareBlobUrl);
+      shareBlobUrl=blob?URL.createObjectURL(blob):shareDataUrl;
+      $('.share-download').href=shareBlobUrl;$('.share-download').download=`GatherTime-人生游戏-${Date.now()}.png`;
+      $('.share-preview-wrap').classList.add('is-ready');
     },'image/png');
   }
+  function openShareGame() { showView('share');$('.share-preview-wrap').classList.remove('is-ready');generateShareGame(); }
   function bindSilentAudio(button,duration) {
     let playing=false,elapsed=0,timer=0;
     button.addEventListener('click',()=>{
@@ -337,7 +335,6 @@
   $('.detail-back').addEventListener('click',returnHomeFromDetail);
   $('.share-back').addEventListener('click',goHome);
   $('.share-reroll').addEventListener('click',()=>{$('.share-preview-wrap').classList.remove('is-ready');generateShareGame();});
-  $('.share-download').addEventListener('click',downloadShareGame);
 
   window.GatherExperience={openCapture,openInterview,openDetail};
 })();
