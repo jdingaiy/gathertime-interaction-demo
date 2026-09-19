@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GatherTime</title>
+  <link rel="stylesheet" href="experience.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0" rel="stylesheet">
@@ -31,7 +32,7 @@
     .photo.is-down, .photo.is-down:hover { background-image: var(--photo); background-size: cover; background-position: center; background-repeat: no-repeat; box-shadow: 0 12px 10px rgba(25,25,25,.16); }
     .photo.is-selected, .photo.is-selected:hover { background-image: var(--photo); background-size: cover; background-position: center; background-repeat: no-repeat; box-shadow: 0 14px 12px rgba(25,25,25,.17); }
     .thing.is-selected { z-index: 80 !important; }
-    .thing.focus-transition { transition: transform .72s cubic-bezier(.22,.61,.36,1); }
+    .thing.focus-transition { transition: transform .46s cubic-bezier(.22,.61,.36,1); }
     .focus-title { position: absolute; left: 0; top: 0; z-index: 81; max-width: 240px; color: #fff; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; pointer-events: none; transform-origin: top left; opacity: 0; animation: reveal-information .32s .1s ease forwards; }
     .focus-title span { display: table; max-width: 100%; padding: 4px 7px 5px; overflow: hidden; background: #171717; white-space: nowrap; text-overflow: ellipsis; }
     .focus-title-main { font-size: 16px; font-weight: 600; line-height: 1.2; letter-spacing: -.02em; }
@@ -43,7 +44,7 @@
     .memory-card p { margin: 0 0 20px; color: #5d626a; font-size: 14px; line-height: 1.62; }
     .memory-actions { display: grid; grid-template-columns: minmax(0,1fr) 52px; gap: 14px; align-items: center; }
     .audio-player, .interview-entry { border: 0; color: #fff; background: linear-gradient(180deg,#555,#3f3f3f); box-shadow: none; cursor: pointer; }
-    .audio-player { min-width: 0; height: 50px; display: grid; grid-template-columns: 38px minmax(0,1fr) 38px; align-items: center; gap: 8px; padding: 0 12px 0 8px; border-radius: 17px; }
+    .audio-player { min-width: 0; height: 50px; display: grid; grid-template-columns: 38px minmax(0,1fr) 72px; align-items: center; gap: 8px; padding: 0 12px 0 8px; border-radius: 17px; }
     .audio-player:active, .interview-entry:active { transform: translateY(2px); box-shadow: none; }
     .audio-toggle { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.12); }
     .audio-toggle .material-symbols-rounded { font-size: 27px; }
@@ -72,6 +73,8 @@
 </head>
 <body>
   <main id="scene" aria-label="interactive floating objects"></main>
+  <img id="home-brand" src="assets/Gather.svg" alt="Gather">
+  <button id="add-memory-button" type="button" aria-label="添加物品或照片"><span class="material-symbols-rounded" aria-hidden="true">add</span></button>
   <button id="settings-button" aria-label="打开参数设置" aria-expanded="false">
     <span class="material-symbols-rounded" aria-hidden="true">tune</span>
   </button>
@@ -166,12 +169,14 @@
       }
       scene.appendChild(el);
       const memory=(type==='object'?objectMemories:photoMemories)[i];
-      const item={ el, type, order:items.length+1, x:0,y:0,vx:0,vy:0,angle:(Math.random()-.5)*26,baseW:w,baseH:h,w,h,drag:false,px:0,py:0,hull,hitMask,z:i,memory,
+      const item={ el, type, sourceIndex:i, order:items.length+1, x:0,y:0,vx:0,vy:0,angle:(Math.random()-.5)*26,baseW:w,baseH:h,w,h,drag:false,px:0,py:0,hull,hitMask,z:i,memory,
+        previewSrc:type==='object'?objectAssets[i].original:photos[i].src,
         originalSrc:type==='object'?new URL(objectAssets[i].original,document.baseURI).href:null,tone:type==='object'?objectAssets[i].tone:null,outlineUrl:null,hoverUrl:null };
       items.push(item);
+      return item;
     }
-    for (let i=0;i<objectAssets.length;i++) addThing('object', i);
-    for (let i=0;i<9;i++) addThing('photo', i);
+    for (let i=0;i<objectAssets.length;i++) if(objectAssets[i].name!=='comb') addThing('object', i);
+    for (let i=0;i<9;i++) if(i!==7) addThing('photo', i);
     function render(a) {
       const screenX=(a.x+a.w/2)*camera.zoom+camera.x-a.w/2;
       const screenY=(a.y+a.h/2)*camera.zoom+camera.y-a.h/2;
@@ -398,7 +403,7 @@
     const MEMORY_ZONE_TOP_GAP=28;
     const MEMORY_ZONE_BOTTOM_PADDING=82;
     function memoryMeta(a) {
-      if(a.type==='object')return {title:a.memory[0],time:objectTimes[a.order-1]||'时间未记录'};
+      if(a.type==='object')return {title:a.memory[0],time:objectTimes[a.sourceIndex]||'时间未记录'};
       const parts=a.memory[0].split('·').map(part=>part.trim());
       return {title:parts.slice(1).join(' · ')||parts[0],time:parts.length>1?parts[0]:'时间未记录'};
     }
@@ -534,19 +539,19 @@
         return cy+radius<=zone.y||cy-radius>=bottom;
       });
     }
-    function revealMemoryWhenClear(a) {
+    function revealMemoryWhenClear(a,attempt=0) {
       if(selectedItem!==a)return;
-      if(memoryZoneIsClear()){
+      if(memoryZoneIsClear()||attempt>=5){
         a.memoryCard?.classList.add('is-visible');
         return;
       }
       pushAwayFromFocus(4);
-      a.memoryRevealTimer=setTimeout(()=>revealMemoryWhenClear(a),100);
+      a.memoryRevealTimer=setTimeout(()=>revealMemoryWhenClear(a,attempt+1),70);
     }
     function markFocusTransition() {
       clearTimeout(focusTransitionTimer);
       items.forEach(a=>a.el.classList.add('focus-transition'));
-      focusTransitionTimer=setTimeout(()=>items.forEach(a=>a.el.classList.remove('focus-transition')),760);
+      focusTransitionTimer=setTimeout(()=>items.forEach(a=>a.el.classList.remove('focus-transition')),500);
     }
     function clearSelection({animate=true,wakeItems=true,collapseZone=false,preserveItem=null}={}) {
       if(!selectedItem)return;
@@ -589,33 +594,33 @@
     function updateAudioButton(a) {
       const button=a.memoryCard?.querySelector('.audio-player');
       if(!button)return;
-      const playing=speakingItem===a&&!speechSynthesis.paused;
+      const playing=speakingItem===a&&!a.audioPaused;
       button.classList.toggle('is-playing',playing);
       button.querySelector('.audio-toggle .material-symbols-rounded').textContent=playing?'pause':'play_arrow';
-      button.querySelector('.audio-time').textContent=formatAudioTime(a.audioElapsed||0);
+      button.querySelector('.audio-time').textContent=`${formatAudioTime(a.audioElapsed||0)} / ${formatAudioTime(a.audioDuration||96)}`;
     }
     function startAudioTimer(a) {
       clearInterval(a.audioTimer);
-      a.audioTimer=setInterval(()=>{a.audioElapsed=(a.audioElapsed||0)+1;updateAudioButton(a);},1000);
+      a.audioTimer=setInterval(()=>{
+        a.audioElapsed=(a.audioElapsed||0)+1;
+        if(a.audioElapsed>=a.audioDuration){stopMemoryAudio();return;}
+        updateAudioButton(a);
+      },1000);
     }
     function stopMemoryAudio() {
-      if(speakingItem){clearInterval(speakingItem.audioTimer);speakingItem.audioTimer=0;speakingItem.audioElapsed=0;}
-      if('speechSynthesis' in window)speechSynthesis.cancel();
+      if(speakingItem){clearInterval(speakingItem.audioTimer);speakingItem.audioTimer=0;speakingItem.audioElapsed=0;speakingItem.audioPaused=false;}
       const previous=speakingItem;speakingItem=null;
       if(previous)updateAudioButton(previous);
     }
     function toggleMemoryAudio(a) {
-      if(!('speechSynthesis' in window))return;
       if(speakingItem===a){
-        if(speechSynthesis.paused){speechSynthesis.resume();startAudioTimer(a);}else{speechSynthesis.pause();clearInterval(a.audioTimer);}
+        a.audioPaused=!a.audioPaused;
+        if(a.audioPaused)clearInterval(a.audioTimer);else startAudioTimer(a);
         updateAudioButton(a);return;
       }
       stopMemoryAudio();
-      const utterance=new SpeechSynthesisUtterance(a.memory[1]);
-      utterance.lang='zh-CN';utterance.rate=.92;
-      utterance.onend=()=>{if(speakingItem===a)stopMemoryAudio();};
-      utterance.onerror=()=>{if(speakingItem===a)stopMemoryAudio();};
-      speakingItem=a;a.audioElapsed=0;speechSynthesis.speak(utterance);startAudioTimer(a);updateAudioButton(a);
+      speakingItem=a;a.audioElapsed=0;a.audioPaused=false;a.audioDuration=82+(a.sourceIndex*13)%74;
+      startAudioTimer(a);updateAudioButton(a);
     }
     function showEntryToast() {
       clearTimeout(toastTimer);entryToast.classList.add('show');
@@ -632,16 +637,19 @@
       const card=document.createElement('div');
       card.className='memory-card';
       const bars=[7,13,10,18,9,15,23,12,20,26,17,24,13,21,9,16,7,11];
-      card.innerHTML=`<div class="memory-index">${String(a.order).padStart(2,'0')}</div><p>${a.memory[1]}</p><div class="memory-actions"><button class="audio-player" type="button" aria-label="播放${a.memory[0]}的录音"><span class="audio-toggle"><span class="material-symbols-rounded" aria-hidden="true">play_arrow</span></span><span class="waveform" aria-hidden="true">${bars.map((height,index)=>`<i style="--h:${height}px;--i:${index}"></i>`).join('')}</span><span class="audio-time">0:00</span></button><button class="interview-entry" type="button" aria-label="进入录音或 AI 语音采访"><span class="material-symbols-rounded" aria-hidden="true">mic</span></button></div>`;
+      card.innerHTML=`<div class="memory-index">${String(a.order).padStart(2,'0')}</div><p role="button" tabindex="0" aria-label="查看${a.memory[0]}的回忆详情">${a.memory[1]}</p><div class="memory-actions"><button class="audio-player" type="button" aria-label="播放${a.memory[0]}的录音"><span class="audio-toggle"><span class="material-symbols-rounded" aria-hidden="true">play_arrow</span></span><span class="waveform" aria-hidden="true">${bars.map((height,index)=>`<i style="--h:${height}px;--i:${index}"></i>`).join('')}</span><span class="audio-time">0:00</span></button><button class="interview-entry" type="button" aria-label="进入录音或 AI 语音采访"><span class="material-symbols-rounded" aria-hidden="true">mic</span></button></div>`;
       card.addEventListener('pointerdown',event=>event.stopPropagation());
       card.querySelector('.audio-player').addEventListener('click',()=>toggleMemoryAudio(a));
-      card.querySelector('.interview-entry').addEventListener('click',showEntryToast);
+      const detailEntry=card.querySelector('p');
+      detailEntry.addEventListener('click',()=>window.GatherExperience?.openDetail(a));
+      detailEntry.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();window.GatherExperience?.openDetail(a);}});
+      card.querySelector('.interview-entry').addEventListener('click',()=>window.GatherExperience?.openInterview(a));
       scene.appendChild(card);a.memoryCard=card;
       renderFocusUI();
       initializeMemoryZoneSides();
       markFocusTransition();
       pushAwayFromFocus();
-      a.memoryRevealTimer=setTimeout(()=>revealMemoryWhenClear(a),760);
+      a.memoryRevealTimer=setTimeout(()=>revealMemoryWhenClear(a),480);
       clampCameraY();
       renderAll();
     }
@@ -650,19 +658,25 @@
       pendingSelection=a;
       a.vx=0;a.vy=0;
       clearSelection({animate:true,wakeItems:false,collapseZone:true,preserveItem:a});
-      gatherBoostUntil=performance.now()+720;
-      wake(1200);
+      gatherBoostUntil=performance.now()+380;
+      wake(760);
+      schedulePendingSelection(a,460);
+    }
+    function schedulePendingSelection(a,delay=420) {
+      clearTimeout(selectionSwitchTimer);
       selectionSwitchTimer=setTimeout(()=>{
         if(pendingSelection!==a)return;
-        items.forEach(item=>{
-          if(item!==a){item.vx*=.35;item.vy*=.35;}
-        });
+        items.forEach(item=>{if(item!==a){item.vx*=.28;item.vy*=.28;}});
         pendingSelection=null;
         activateSelection(a);
-      },820);
+      },delay);
     }
     function selectItem(a) {
-      if(pendingSelection)return;
+      if(pendingSelection){
+        pendingSelection=a;a.vx=0;a.vy=0;
+        schedulePendingSelection(a,360);
+        return;
+      }
       if(selectedItem===a){clearSelection();return;}
       if(selectedItem){startSelectionSwitch(a);return;}
       activateSelection(a);
@@ -823,6 +837,32 @@
       items.forEach(a=>{const cx=a.x+a.w/2, cy=a.y+a.h/2;setSize(a,itemScale);a.x=cx-a.w/2;a.y=cy-a.h/2;});
       applyOutlineMetrics(); resolveCollisions(null,16); wake(3200); renderAll();
     }, value=>`${value}%`);
+    function addCapturedItem(type,sourceIndex) {
+      const existing=items.find(a=>a.type===type&&a.sourceIndex===sourceIndex);
+      if(existing)return existing;
+      const a=addThing(type,sourceIndex);
+      setSize(a,itemScale);
+      a.x=(-camera.x+innerWidth*.5)/camera.zoom-a.w/2;
+      a.y=(-camera.y+innerHeight*.58)/camera.zoom-a.h/2;
+      a.angle=(Math.random()-.5)*18;
+      a.z=++zCounter;a.el.style.zIndex=a.z;
+      constrainHorizontal(a,false);
+      resolveCollisions(a,18,false);
+      if(type==='object')scheduleObjectOutlines();
+      wake(2600);renderAll();
+      return a;
+    }
+    function updateItemMemory(a,summary) {
+      if(!a||!summary)return;
+      a.memory[1]=summary;
+      a.memoryCard?.querySelector('p')?.replaceChildren(document.createTextNode(summary));
+    }
+    window.GatherHome={
+      addCaptured:addCapturedItem,
+      updateMemory:updateItemMemory,
+      closeFocus:()=>clearSelection(),
+      hasItem:(type,sourceIndex)=>items.some(a=>a.type===type&&a.sourceIndex===sourceIndex)
+    };
     applyOutlineMetrics();
     scheduleObjectOutlines();
     packedLayout();
@@ -834,5 +874,6 @@
     });
     requestAnimationFrame(physicsFrame);
   </script>
+  <script src="experience.js"></script>
 </body>
 </html>
