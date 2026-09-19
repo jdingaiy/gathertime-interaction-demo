@@ -75,7 +75,7 @@
 </head>
 <body>
   <main id="scene" aria-label="interactive floating objects"></main>
-  <img id="home-brand" src="assets/Gather.svg" alt="Gather">
+  <button id="home-brand" type="button" aria-label="生成回忆人生游戏"><img src="assets/Gather.svg" alt="Gather"></button>
   <button id="add-memory-button" type="button" aria-label="添加物品或照片"><span class="material-symbols-rounded" aria-hidden="true">add</span></button>
   <button id="settings-button" aria-label="打开参数设置" aria-expanded="false">
     <span class="material-symbols-rounded" aria-hidden="true">tune</span>
@@ -883,6 +883,7 @@
       addCaptured:addCapturedItem,
       updateMemory:updateItemMemory,
       returnFromDetail,
+      getShareItems:()=>items.map(a=>({title:memoryMeta(a).title,time:memoryMeta(a).time,summary:a.memory[1],src:a.previewSrc,type:a.type,order:a.order})),
       closeFocus:()=>clearSelection(),
       hasItem:(type,sourceIndex)=>items.some(a=>a.type===type&&a.sourceIndex===sourceIndex)
     };
