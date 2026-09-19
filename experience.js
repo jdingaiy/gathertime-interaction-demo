@@ -114,12 +114,13 @@
       <header class="experience-header"><button class="icon-button interview-back" aria-label="返回"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header>
       <div class="interview-shell"><div class="subject-stage"><div class="ripple-field"><span></span><span></span><span></span><span></span></div><img class="subject-float" alt="采访对象"></div>
         <div class="interview-panel">
-          <div class="interview-ready"><div class="mode-switcher" role="tablist" aria-label="录音模式"><button data-mode="record" class="is-active" role="tab" aria-label="多人录音" aria-selected="true"><span class="material-symbols-rounded">group</span></button><button data-mode="ai" role="tab" aria-label="AI 访谈" aria-selected="false"><span class="material-symbols-rounded">blur_on</span></button></div><div class="mode-dots" aria-hidden="true"><i class="is-active"></i><i></i></div><button class="record-button start-interview" aria-label="开始录音"><span class="material-symbols-rounded">mic</span></button></div>
+          <div class="interview-ready"><div class="mode-switcher" role="tablist" aria-label="录音模式"><button data-mode="record" class="is-active" role="tab" aria-selected="true">听你们聊聊</button><button data-mode="ai" role="tab" aria-selected="false">和我聊聊</button></div><div class="mode-dots" aria-hidden="true"><i class="is-active"></i><i></i></div><button class="record-button start-interview" aria-label="开始录音"><span class="material-symbols-rounded">mic</span></button></div>
           <div class="interview-running"><div class="question-number"></div><div class="question-text"></div><div class="live-wave">${bars.map((h,i)=>`<i style="--h:${h}px;--i:${i}"></i>`).join('')}</div><div class="record-meta">00:00</div><div class="finish-row"><button class="record-button next-answer" aria-label="结束录音"><span class="material-symbols-rounded">stop</span></button></div></div>
         </div>
       </div>
     </section>
     <section id="detail-view" class="experience-view" aria-hidden="true"><header class="experience-header"><button class="icon-button detail-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header><div class="experience-scroll"><article class="detail-page"></article></div></section>
+    <section id="share-view" class="experience-view" aria-hidden="true"><header class="experience-header"><button class="icon-button share-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header><div class="share-shell"><div class="share-heading"><div class="eyebrow">LIFE AS A GAME</div><h1>这一局，是我们走过的人生</h1></div><div class="share-preview-wrap"><div class="share-loading">正在整理回忆…</div><img class="share-preview" alt="人生游戏回忆分享图"></div><div class="share-actions"><button class="secondary-button share-reroll"><span class="material-symbols-rounded">casino</span>换一组</button><button class="primary-button share-download"><span class="material-symbols-rounded">download</span>下载分享图</button></div><canvas class="share-canvas" width="1080" height="1350" hidden></canvas></div></section>
     <div class="toast-message"></div>`;
   document.body.appendChild(root);
 
@@ -136,6 +137,7 @@
   let toastTimer = 0;
   let captureTimer = 0;
   let swipeStartX = null;
+  let shareDataUrl = '';
 
   const subjectFromItem = item => {
     const key = `${item.type}-${item.sourceIndex}`;
@@ -246,6 +248,54 @@
   function audioMarkup(duration) {
     return `<button class="audio-player detail-audio" type="button"><span class="audio-toggle"><span class="material-symbols-rounded">play_arrow</span></span><span class="waveform">${bars.slice(0,18).map((h,i)=>`<i style="--h:${h}px;--i:${i}"></i>`).join('')}</span><span class="audio-time">0:00 / ${Math.floor(duration/60)}:${String(duration%60).padStart(2,'0')}</span></button>`;
   }
+  const loadShareImage = src => new Promise(resolve=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>resolve(null);image.src=src;});
+  function drawContained(ctx,image,x,y,w,h,padding=20) {
+    if(!image)return;
+    const scale=Math.min((w-padding*2)/image.naturalWidth,(h-padding*2)/image.naturalHeight);
+    const dw=image.naturalWidth*scale,dh=image.naturalHeight*scale;
+    ctx.drawImage(image,x+(w-dw)/2,y+(h-dh)/2,dw,dh);
+  }
+  function fitShareText(ctx,text,maxWidth) {
+    if(ctx.measureText(text).width<=maxWidth)return text;
+    let result=text;
+    while(result.length>1&&ctx.measureText(`${result}…`).width>maxWidth)result=result.slice(0,-1);
+    return `${result}…`;
+  }
+  async function generateShareGame() {
+    const canvas=$('.share-canvas'),ctx=canvas.getContext('2d');
+    const all=window.GatherHome?.getShareItems?.()||[];
+    const chosen=[...all].sort(()=>Math.random()-.5).slice(0,Math.min(6,all.length));
+    const images=await Promise.all(chosen.map(item=>loadShareImage(item.src)));
+    const selectedCells=[0,2,4,7,9,11],byCell=new Map(selectedCells.slice(0,chosen.length).map((cell,index)=>[cell,{item:chosen[index],image:images[index]}]));
+    ctx.clearRect(0,0,1080,1350);ctx.fillStyle='#f3f0e8';ctx.fillRect(0,0,1080,1350);
+    ctx.fillStyle='#171717';ctx.font='700 82px Georgia, serif';ctx.fillText('人生游戏',76,118);
+    ctx.font='500 25px system-ui, sans-serif';ctx.fillStyle='#666';ctx.fillText('把散落的时间，重新走成一条路',80,168);
+    ctx.font='700 24px system-ui, sans-serif';ctx.fillStyle='#171717';ctx.textAlign='right';ctx.fillText('GatherTime',1000,112);ctx.textAlign='left';
+    const gridX=75,gridY=235,cellW=310,cellH=235;
+    const prompts=['起点','一次相遇','一段声音','一个转弯','没有丢掉','继续向前'];
+    for(let row=0;row<4;row++)for(let col=0;col<3;col++){
+      const index=row*3+col,x=gridX+col*cellW,y=gridY+row*cellH;
+      const dark=(row+col)%2===1;
+      ctx.fillStyle=dark?'#20201f':'#ded8cc';ctx.fillRect(x,y,cellW,cellH);
+      ctx.strokeStyle='#171717';ctx.lineWidth=3;ctx.strokeRect(x,y,cellW,cellH);
+      ctx.font='600 20px system-ui, sans-serif';ctx.fillStyle=dark?'rgba(255,255,255,.58)':'rgba(23,23,23,.5)';ctx.fillText(String(index+1).padStart(2,'0'),x+18,y+30);
+      const memory=byCell.get(index);
+      if(memory){
+        ctx.save();ctx.beginPath();ctx.rect(x+6,y+6,cellW-12,cellH-12);ctx.clip();drawContained(ctx,memory.image,x+18,y+35,cellW-36,cellH-88,8);ctx.restore();
+        ctx.fillStyle=dark?'#fff':'#171717';ctx.font='650 21px system-ui, sans-serif';ctx.fillText(fitShareText(ctx,memory.item.title,cellW-36),x+18,y+cellH-24);
+      }else{
+        ctx.fillStyle=dark?'rgba(255,255,255,.88)':'rgba(23,23,23,.8)';ctx.font='600 25px Georgia, serif';ctx.fillText(prompts[index%prompts.length],x+22,y+cellH-28);
+      }
+    }
+    ctx.fillStyle='#171717';ctx.font='500 22px system-ui, sans-serif';ctx.fillText(`本局收集 ${chosen.length} 段回忆 · ${new Date().getFullYear()}`,78,1245);
+    ctx.font='400 18px system-ui, sans-serif';ctx.fillStyle='#777';ctx.fillText('每一次讲述，都会让这张棋盘继续生长。',78,1284);
+    shareDataUrl=canvas.toDataURL('image/png');$('.share-preview').src=shareDataUrl;$('.share-preview-wrap').classList.add('is-ready');
+  }
+  function openShareGame() { showView('share');$('.share-preview-wrap').classList.remove('is-ready');generateShareGame(); }
+  function downloadShareGame() {
+    if(!shareDataUrl)return;
+    const link=document.createElement('a');link.href=shareDataUrl;link.download=`GatherTime-人生游戏-${Date.now()}.png`;link.click();
+  }
   function bindSilentAudio(button,duration) {
     let playing=false,elapsed=0,timer=0;
     button.addEventListener('click',()=>{
@@ -260,12 +310,13 @@
     currentSubject=subject;
     const history=subject.history||histories[subject.key];
     const duration=88+(subject.sourceIndex*17)%92;
-    $('.detail-page').innerHTML=`<div class="detail-hero"><div class="detail-meta"><span class="detail-label">${subject.title}</span><span class="detail-time">${subject.time}</span></div><img class="detail-subject" src="${subject.src}" alt="${subject.title}"></div><div class="detail-number">${String(subject.order||1).padStart(2,'0')}</div><h1 class="detail-title">${history.title}</h1><p class="detail-deck">${history.deck}</p>${audioMarkup(duration)}<div class="detail-body">${history.paragraphs.map((p,i)=>`${i===1?'<h2>记忆里的细节</h2>':''}<p>${p}</p>`).join('')}</div>`;
-    bindSilentAudio($('.detail-audio'),duration);showView('detail');$('.experience-scroll').scrollTop=0;
+    $('.detail-page').innerHTML=`<div class="detail-hero"><div class="detail-meta"><span class="detail-label">${subject.title}</span><span class="detail-time">${subject.time}</span></div><img class="detail-subject" src="${subject.src}" alt="${subject.title}"></div><div class="detail-number">${String(subject.order||1).padStart(2,'0')}</div><h1 class="detail-title">${history.title}</h1><p class="detail-deck">${history.deck}</p><div class="detail-actions">${audioMarkup(duration)}<button class="interview-entry detail-interview-entry" type="button" aria-label="再次录音"><span class="material-symbols-rounded">mic</span></button></div><div class="detail-body">${history.paragraphs.map((p,i)=>`${i===1?'<h2>记忆里的细节</h2>':''}<p>${p}</p>`).join('')}</div>`;
+    bindSilentAudio($('.detail-audio'),duration);$('.detail-interview-entry').addEventListener('click',()=>openInterview(currentSubject));showView('detail');$('.experience-scroll').scrollTop=0;
   }
 
   document.addEventListener('click',event=>{
     if(event.target.closest('#add-memory-button'))openCapture();
+    if(event.target.closest('#home-brand'))openShareGame();
   });
   $('.capture-back').addEventListener('click',goHome);
   root.querySelectorAll('.capture-mode').forEach(button=>button.addEventListener('click',()=>setCaptureMode(button.dataset.mode)));
@@ -279,6 +330,9 @@
   $('.start-interview').addEventListener('click',startInterview);
   $('.next-answer').addEventListener('click',nextInterviewStep);
   $('.detail-back').addEventListener('click',returnHomeFromDetail);
+  $('.share-back').addEventListener('click',goHome);
+  $('.share-reroll').addEventListener('click',()=>{$('.share-preview-wrap').classList.remove('is-ready');generateShareGame();});
+  $('.share-download').addEventListener('click',downloadShareGame);
 
   window.GatherExperience={openCapture,openInterview,openDetail};
 })();
