@@ -250,7 +250,16 @@
   function audioMarkup(duration) {
     return `<button class="audio-player detail-audio" type="button"><span class="audio-toggle"><span class="material-symbols-rounded">play_arrow</span></span><span class="waveform">${bars.slice(0,18).map((h,i)=>`<i style="--h:${h}px;--i:${i}"></i>`).join('')}</span><span class="audio-time">0:00 / ${Math.floor(duration/60)}:${String(duration%60).padStart(2,'0')}</span></button>`;
   }
-  const loadShareImage = src => new Promise(resolve=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>resolve(null);image.src=src;});
+  const loadShareImage = async src => {
+    const image=new Image();
+    image.decoding='async';
+    image.src=new URL(src,document.baseURI).href;
+    try{
+      if(image.decode)await image.decode();
+      else await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=reject;});
+      return image;
+    }catch(error){console.warn('分享素材加载失败',src,error);return null;}
+  };
   function drawContained(ctx,image,x,y,w,h,padding=20) {
     if(!image)return;
     const scale=Math.min((w-padding*2)/image.naturalWidth,(h-padding*2)/image.naturalHeight);
