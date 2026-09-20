@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GatherTime</title>
-  <link rel="stylesheet" href="experience.css?v=20260920-6">
+  <link rel="stylesheet" href="experience.css?v=20260920-7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0" rel="stylesheet">
@@ -832,7 +832,7 @@
       sharePullOverlay.style.opacity='1';
       setTimeout(()=>{
         window.GatherExperience?.openShareGame?.({fromPull:true});
-        setTimeout(()=>{sharePullOverlay.classList.remove('is-active','is-committing');sharePullOverlay.style.opacity='0';homeTopPanel.style.removeProperty('--pull');homeTopPanel.style.removeProperty('background');panelPullDistance=0;sharePullCommitting=false;},260);
+        setTimeout(()=>{sharePullOverlay.classList.remove('is-active','is-committing');sharePullOverlay.style.opacity='0';homeTopPanel.style.removeProperty('--pull');homeTopPanel.style.removeProperty('background');homeTopPanel.style.removeProperty('opacity');panelPullDistance=0;sharePullCommitting=false;},260);
       },180);
     }
     scene.addEventListener('wheel', e => {
@@ -853,10 +853,8 @@
       panelPullDistance=Math.max(0,Math.min(150,distance));
       const progress=Math.min(1,panelPullDistance/105);
       homeTopPanel.style.setProperty('--pull',`${panelPullDistance*.34}px`);
-      const shade=Math.round(17+(154-17)*progress);
-      const alpha=(1-(.22*progress)).toFixed(3);
-      homeTopPanel.style.background=`rgba(${shade},${shade},${shade},${alpha})`;
-      sharePullOverlay.style.opacity=String(progress*.92);
+      homeTopPanel.style.opacity=String(1-progress);
+      sharePullOverlay.style.opacity=String(progress);
       sharePullOverlay.classList.toggle('is-active',progress>0);
     }
     homeTopPanel.addEventListener('pointerdown',event=>{
@@ -877,7 +875,7 @@
       if(shouldOpen){
         commitSharePull();
       }else{
-        sharePullOverlay.style.opacity='0';homeTopPanel.style.removeProperty('--pull');homeTopPanel.style.removeProperty('background');
+        sharePullOverlay.style.opacity='0';homeTopPanel.style.removeProperty('--pull');homeTopPanel.style.removeProperty('background');homeTopPanel.style.removeProperty('opacity');
         setTimeout(()=>sharePullOverlay.classList.remove('is-active'),220);
       }
     }
