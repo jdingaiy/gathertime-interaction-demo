@@ -7,12 +7,13 @@ body.home-top-visible #home-brand { opacity: 0; transform: translateY(-8px); poi
 #home-top-panel {
   --pull: 0px;
   position: fixed; left: 0; right: 0; top: 0; z-index: 94; display: grid; place-items: center;
-  padding: max(24px,env(safe-area-inset-top)) 24px 24px; color: #fff; background: #111;
+  box-sizing: border-box; padding: max(12px,env(safe-area-inset-top)) 18px 12px; color: #fff; background: #111;
   border-radius: 0 0 48px 48px; touch-action: none; user-select: none; cursor: grab;
   translate: 0 var(--pull); will-change: transform,translate;
 }
 #home-top-panel:active { cursor: grabbing; }
-#home-top-panel > img { width: min(142px,34vw); filter: invert(1); }
+#home-top-panel > img { width: min(104px,26vw); filter: invert(1); }
+#home-top-panel:not(.is-ready) { pointer-events: none; }
 #share-pull-overlay { position: fixed; inset: 0; z-index: 295; background: #000; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
 #share-pull-overlay.is-active { display: block; }
 #share-pull-overlay.is-committing { transition-duration: .16s; }
