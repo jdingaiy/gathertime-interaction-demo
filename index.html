@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GatherTime</title>
-  <link rel="stylesheet" href="experience.css?v=20260919-3">
+  <link rel="stylesheet" href="experience.css?v=20260920-2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0" rel="stylesheet">
@@ -77,7 +77,6 @@
   <main id="scene" aria-label="interactive floating objects"></main>
   <div id="home-top-panel" aria-label="下拉进入回忆分享">
     <img src="assets/Gather.svg" alt="Gather">
-    <div class="home-top-hint"><span class="material-symbols-rounded" aria-hidden="true">keyboard_arrow_down</span><span>下拉查看 Gather Moment</span></div>
   </div>
   <div id="share-pull-overlay" aria-hidden="true"></div>
   <button id="home-brand" type="button" aria-label="生成回忆人生游戏"><img src="assets/Gather.svg" alt="Gather"></button>
@@ -820,8 +819,28 @@
     scene.addEventListener('pointerup',releasePointer);
     scene.addEventListener('pointercancel',releasePointer);
     scene.addEventListener('pointerleave',()=>{if(!activeItem&&!camera.dragging)setHovered(null);});
+    let desktopPullTimer=0;
+    let sharePullCommitting=false;
+    function commitSharePull() {
+      if(sharePullCommitting)return;
+      sharePullCommitting=true;
+      clearTimeout(desktopPullTimer);
+      sharePullOverlay.classList.add('is-active','is-committing');
+      sharePullOverlay.style.opacity='1';
+      setTimeout(()=>{
+        window.GatherExperience?.openShareGame?.({fromPull:true});
+        setTimeout(()=>{sharePullOverlay.classList.remove('is-active','is-committing');sharePullOverlay.style.opacity='0';homeTopPanel.style.removeProperty('--pull');panelPullDistance=0;sharePullCommitting=false;},260);
+      },180);
+    }
     scene.addEventListener('wheel', e => {
       e.preventDefault();
+      if(document.body.classList.contains('home-top-visible')&&e.deltaY<0){
+        clearTimeout(desktopPullTimer);
+        setPullProgress(panelPullDistance+Math.min(42,-e.deltaY*.5));
+        if(panelPullDistance>=88){commitSharePull();return;}
+        desktopPullTimer=setTimeout(()=>{setPullProgress(0);sharePullOverlay.style.opacity='0';setTimeout(()=>sharePullOverlay.classList.remove('is-active'),220);},180);
+        return;
+      }
       camera.y-=e.deltaY;
       clampCameraY();
       renderAll();
@@ -849,12 +868,7 @@
       panelPullPointer=null;
       try{homeTopPanel.releasePointerCapture(event.pointerId);}catch{}
       if(shouldOpen){
-        sharePullOverlay.classList.add('is-committing');
-        sharePullOverlay.style.opacity='1';
-        setTimeout(()=>{
-          window.GatherExperience?.openShareGame?.({fromPull:true});
-          setTimeout(()=>{sharePullOverlay.classList.remove('is-active','is-committing');sharePullOverlay.style.opacity='0';homeTopPanel.style.removeProperty('--pull');},260);
-        },180);
+        commitSharePull();
       }else{
         sharePullOverlay.style.opacity='0';homeTopPanel.style.removeProperty('--pull');
         setTimeout(()=>sharePullOverlay.classList.remove('is-active'),220);
@@ -956,6 +970,6 @@
     });
     requestAnimationFrame(physicsFrame);
   </script>
-  <script src="experience.js?v=20260919-3"></script>
+  <script src="experience.js?v=20260920-2"></script>
 </body>
 </html>

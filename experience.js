@@ -119,8 +119,8 @@
         </div>
       </div>
     </section>
-    <section id="detail-view" class="experience-view" aria-hidden="true"><header class="experience-header"><button class="icon-button detail-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header><div class="experience-scroll"><article class="detail-page"></article></div></section>
-    <section id="share-view" class="experience-view" aria-hidden="true"><header class="experience-header"><button class="icon-button share-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header><div class="share-shell"><div class="share-preview-wrap"><div class="share-loading">正在整理回忆…</div><img class="share-preview" alt="人生游戏回忆分享图"></div><div class="share-actions"><a class="primary-button share-download" href="#" download="GatherTime-人生游戏.png">下载分享图</a><button class="secondary-button share-reroll">换一换</button></div><canvas class="share-canvas" width="1080" height="1080" hidden></canvas></div></section>
+    <section id="detail-view" class="experience-view" aria-hidden="true"><header class="experience-header"><img class="brand-image" src="assets/Gather.svg" alt="Gather"></header><div class="experience-scroll"><article class="detail-page"></article></div></section>
+    <section id="share-view" class="experience-view" aria-hidden="true"><header class="experience-header"><button class="icon-button share-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header><div class="share-shell"><div class="share-preview-wrap is-ready"><img class="share-preview" src="assets/share-game-placeholder.png" alt="人生游戏回忆分享图"></div><div class="share-actions"><a class="primary-button share-download" href="assets/share-game-placeholder.png" download="GatherTime-人生游戏.png">下载分享图</a><button class="secondary-button share-reroll">换一换</button></div></div></section>
     <div class="toast-message"></div>`;
   document.body.appendChild(root);
 
@@ -306,7 +306,7 @@
       $('.share-preview-wrap').classList.add('is-ready');
     },'image/png');
   }
-  function openShareGame() { showView('share');$('.share-preview-wrap').classList.remove('is-ready');generateShareGame(); }
+  function openShareGame() { showView('share');$('.share-preview-wrap').classList.add('is-ready'); }
   function bindSilentAudio(button,duration) {
     let playing=false,elapsed=0,timer=0;
     button.addEventListener('click',()=>{
@@ -340,9 +340,22 @@
   $('.interview-shell').addEventListener('pointercancel',()=>{swipeStartX=null;});
   $('.start-interview').addEventListener('click',startInterview);
   $('.next-answer').addEventListener('click',nextInterviewStep);
-  $('.detail-back').addEventListener('click',returnHomeFromDetail);
   $('.share-back').addEventListener('click',goHome);
-  $('.share-reroll').addEventListener('click',()=>{$('.share-preview-wrap').classList.remove('is-ready');generateShareGame();});
+  $('.share-reroll').addEventListener('click',()=>showToast('更多人生游戏样式即将加入'));
+
+  let detailPullStartY=null;
+  let detailWheelDistance=0;
+  let detailWheelTimer=0;
+  const detailScroll=$('#detail-view .experience-scroll');
+  detailScroll.addEventListener('pointerdown',event=>{if(detailScroll.scrollTop<=1)detailPullStartY=event.clientY;});
+  detailScroll.addEventListener('pointerup',event=>{if(detailPullStartY===null)return;const distance=event.clientY-detailPullStartY;detailPullStartY=null;if(distance>72)returnHomeFromDetail();});
+  detailScroll.addEventListener('pointercancel',()=>{detailPullStartY=null;});
+  detailScroll.addEventListener('wheel',event=>{
+    if(detailScroll.scrollTop>1||event.deltaY>=0){detailWheelDistance=0;return;}
+    event.preventDefault();clearTimeout(detailWheelTimer);detailWheelDistance+=-event.deltaY;
+    if(detailWheelDistance>90){detailWheelDistance=0;returnHomeFromDetail();return;}
+    detailWheelTimer=setTimeout(()=>{detailWheelDistance=0;},180);
+  },{passive:false});
 
   window.GatherExperience={openCapture,openInterview,openDetail,openShareGame};
 })();

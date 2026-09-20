@@ -13,9 +13,6 @@ body.home-top-visible #home-brand { opacity: 0; transform: translateY(-8px); poi
 }
 #home-top-panel:active { cursor: grabbing; }
 #home-top-panel > img { width: min(142px,34vw); filter: invert(1); }
-.home-top-hint { position: absolute; left: 50%; bottom: 13px; display: flex; align-items: center; gap: 3px; transform: translateX(-50%); color: rgba(255,255,255,.46); font: 500 10px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; white-space: nowrap; }
-.home-top-hint .material-symbols-rounded { font-size: 16px; animation: home-pull-hint 1.8s ease-in-out infinite; }
-@keyframes home-pull-hint { 50% { transform: translateY(3px); } }
 #share-pull-overlay { position: fixed; inset: 0; z-index: 295; background: #000; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
 #share-pull-overlay.is-active { display: block; }
 #share-pull-overlay.is-committing { transition-duration: .16s; }
@@ -122,9 +119,8 @@ body.experience-open #settings-panel { opacity: 0; pointer-events: none; }
 .interview-panel { position: absolute; left: 24px; right: 24px; bottom: max(54px,calc(env(safe-area-inset-bottom) + 30px)); z-index: 3; max-width: 480px; margin: auto; text-align: center; }
 .interview-ready { display: grid; justify-items: center; gap: 14px; }
 .mode-switcher { position: relative; width: min(270px,72vw); height: 30px; overflow: hidden; }
-.mode-switcher::after { content:""; position:absolute; left:calc(50% + 44px); right:0; top:50%; height:1px; background:#c9c9c9; }
-.mode-switcher button { position:absolute; inset:0; min-height:30px; padding:0; border:0; color:#171717; background:transparent; font:500 15px/1.2 inherit; cursor:pointer; opacity:0; transform:translateX(45%); transition:opacity .22s ease,transform .3s ease; }
-.mode-switcher button.is-active { opacity:1; transform:none; }
+.mode-switcher button { position:absolute; inset:0; min-height:30px; padding:0; border:0; color:#171717; background:transparent; font:500 15px/1.2 inherit; cursor:pointer; opacity:0; transition:opacity .22s ease; }
+.mode-switcher button.is-active { opacity:1; }
 .mode-dots { display: flex; gap: 7px; height: 6px; align-items: center; }
 .mode-dots i { width: 5px; height: 5px; border-radius: 50%; background: #c7c7c5; transition: width .2s ease, background .2s ease; }
 .mode-dots i.is-active { width: 14px; border-radius: 5px; background: #4a4a4a; }
@@ -163,6 +159,7 @@ body.experience-open #settings-panel { opacity: 0; pointer-events: none; }
 .detail-body { max-width: 620px; }
 .detail-body p { margin: 0 0 1.25em; color: #292929; font-family: Georgia,"Noto Serif SC",serif; font-size: 17px; line-height: 1.92; }
 .detail-body h2 { margin: 2.4em 0 .8em; font-size: 23px; }
+#detail-view .experience-header { justify-content: center; }
 
 .toast-message { position: fixed; left: 50%; bottom: 28px; z-index: 500; transform: translate(-50%,12px); padding: 10px 16px; border-radius: 999px; color: #fff; background: rgba(20,20,20,.9); opacity: 0; pointer-events: none; transition: .2s ease; white-space: nowrap; }
 .toast-message.is-visible { opacity: 1; transform: translate(-50%,0); }
