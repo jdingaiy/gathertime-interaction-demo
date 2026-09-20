@@ -832,7 +832,7 @@
       sharePullOverlay.style.opacity='1';
       setTimeout(()=>{
         window.GatherExperience?.openShareGame?.({fromPull:true});
-        setTimeout(()=>{sharePullOverlay.classList.remove('is-active','is-committing');sharePullOverlay.style.opacity='0';homeTopPanel.style.removeProperty('--pull');panelPullDistance=0;sharePullCommitting=false;},260);
+        setTimeout(()=>{sharePullOverlay.classList.remove('is-active','is-committing');sharePullOverlay.style.opacity='0';homeTopPanel.style.removeProperty('--pull');homeTopPanel.style.removeProperty('background');panelPullDistance=0;sharePullCommitting=false;},260);
       },180);
     }
     scene.addEventListener('wheel', e => {
@@ -853,6 +853,9 @@
       panelPullDistance=Math.max(0,Math.min(150,distance));
       const progress=Math.min(1,panelPullDistance/105);
       homeTopPanel.style.setProperty('--pull',`${panelPullDistance*.34}px`);
+      const shade=Math.round(17+(154-17)*progress);
+      const alpha=(1-(.22*progress)).toFixed(3);
+      homeTopPanel.style.background=`rgba(${shade},${shade},${shade},${alpha})`;
       sharePullOverlay.style.opacity=String(progress*.92);
       sharePullOverlay.classList.toggle('is-active',progress>0);
     }
@@ -874,7 +877,7 @@
       if(shouldOpen){
         commitSharePull();
       }else{
-        sharePullOverlay.style.opacity='0';homeTopPanel.style.removeProperty('--pull');
+        sharePullOverlay.style.opacity='0';homeTopPanel.style.removeProperty('--pull');homeTopPanel.style.removeProperty('background');
         setTimeout(()=>sharePullOverlay.classList.remove('is-active'),220);
       }
     }
