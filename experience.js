@@ -120,7 +120,7 @@
       </div>
     </section>
     <section id="detail-view" class="experience-view" aria-hidden="true"><header class="experience-header"><button class="icon-button detail-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header><div class="experience-scroll"><article class="detail-page"></article></div></section>
-    <section id="share-view" class="experience-view" aria-hidden="true"><header class="experience-header"><button class="icon-button share-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header><div class="share-shell"><div class="share-heading"><div class="eyebrow">LIFE AS A GAME</div><h1>这一局，是我们走过的人生</h1></div><div class="share-preview-wrap"><div class="share-loading">正在整理回忆…</div><img class="share-preview" alt="人生游戏回忆分享图"></div><div class="share-actions"><button class="secondary-button share-reroll"><span class="material-symbols-rounded">casino</span>换一组</button><a class="primary-button share-download" href="#" download="GatherTime-人生游戏.png"><span class="material-symbols-rounded">download</span>下载分享图</a></div><canvas class="share-canvas" width="1080" height="1350" hidden></canvas></div></section>
+    <section id="share-view" class="experience-view" aria-hidden="true"><header class="experience-header"><button class="icon-button share-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header><div class="share-shell"><div class="share-preview-wrap"><div class="share-loading">正在整理回忆…</div><img class="share-preview" alt="人生游戏回忆分享图"></div><div class="share-actions"><a class="primary-button share-download" href="#" download="GatherTime-人生游戏.png">下载分享图</a><button class="secondary-button share-reroll">换一换</button></div><canvas class="share-canvas" width="1080" height="1080" hidden></canvas></div></section>
     <div class="toast-message"></div>`;
   document.body.appendChild(root);
 
@@ -207,6 +207,7 @@
     root.querySelectorAll('.mode-switcher button').forEach(button=>{const active=button.dataset.mode===mode;button.classList.toggle('is-active',active);button.setAttribute('aria-selected',String(active));});
     root.querySelectorAll('.mode-dots i').forEach((dot,index)=>dot.classList.toggle('is-active',index===(mode==='record'?0:1)));
     $('.ripple-field').classList.toggle('is-visible',mode==='ai');
+    $('.interview-shell').classList.toggle('mode-ai',mode==='ai');
   }
   function openInterview(itemOrSubject) {
     const subject=itemOrSubject?.el?subjectFromItem(itemOrSubject):itemOrSubject;
@@ -265,31 +266,29 @@
   async function generateShareGame() {
     const canvas=$('.share-canvas'),ctx=canvas.getContext('2d');
     const all=window.GatherHome?.getShareItems?.()||[];
-    const chosen=[...all].sort(()=>Math.random()-.5).slice(0,Math.min(6,all.length));
+    const chosen=[...all].sort(()=>Math.random()-.5).slice(0,Math.min(9,all.length));
     const images=await Promise.all(chosen.map(item=>loadShareImage(item.src)));
-    const selectedCells=[0,2,4,7,9,11],byCell=new Map(selectedCells.slice(0,chosen.length).map((cell,index)=>[cell,{item:chosen[index],image:images[index]}]));
-    ctx.clearRect(0,0,1080,1350);ctx.fillStyle='#f3f0e8';ctx.fillRect(0,0,1080,1350);
-    ctx.fillStyle='#171717';ctx.font='700 82px Georgia, serif';ctx.fillText('人生游戏',76,118);
-    ctx.font='500 25px system-ui, sans-serif';ctx.fillStyle='#666';ctx.fillText('把散落的时间，重新走成一条路',80,168);
-    ctx.font='700 24px system-ui, sans-serif';ctx.fillStyle='#171717';ctx.textAlign='right';ctx.fillText('GatherTime',1000,112);ctx.textAlign='left';
-    const gridX=75,gridY=235,cellW=310,cellH=235;
-    const prompts=['起点','一次相遇','一段声音','一个转弯','没有丢掉','继续向前'];
-    for(let row=0;row<4;row++)for(let col=0;col<3;col++){
-      const index=row*3+col,x=gridX+col*cellW,y=gridY+row*cellH;
-      const dark=(row+col)%2===1;
-      ctx.fillStyle=dark?'#20201f':'#ded8cc';ctx.fillRect(x,y,cellW,cellH);
-      ctx.strokeStyle='#171717';ctx.lineWidth=3;ctx.strokeRect(x,y,cellW,cellH);
-      ctx.font='600 20px system-ui, sans-serif';ctx.fillStyle=dark?'rgba(255,255,255,.58)':'rgba(23,23,23,.5)';ctx.fillText(String(index+1).padStart(2,'0'),x+18,y+30);
+    const selectedCells=[4,6,10,13,15,20,25,29,34],byCell=new Map(selectedCells.slice(0,chosen.length).map((cell,index)=>[cell,{item:chosen[index],image:images[index]}]));
+    ctx.clearRect(0,0,1080,1080);ctx.fillStyle='#050505';ctx.fillRect(0,0,1080,1080);
+    const gap=6,gridX=0,gridY=0,cellW=180,cellH=180;
+    const prompts=['慢慢长大','一次相遇','留在身边','回到那年','没有丢掉','继续向前'];
+    for(let row=0;row<6;row++)for(let col=0;col<6;col++){
+      const index=row*6+col,x=gridX+col*cellW,y=gridY+row*cellH;
+      const dark=(row+col)%2===0;
+      ctx.fillStyle=dark?'#050505':'#f7f7f5';
+      if(dark)ctx.fillRect(x,y,cellW,cellH);else{ctx.beginPath();ctx.roundRect(x+gap/2,y+gap/2,cellW-gap,cellH-gap,18);ctx.fill();}
+      const routeNumber=(5-row)*6+(row%2===0?6-col:col+1);
+      ctx.font='600 30px monospace';ctx.fillStyle=dark?'#8e8e92':'#929296';ctx.fillText(String(routeNumber).padStart(2,'0'),x+17,y+38);
       const memory=byCell.get(index);
       if(memory){
-        ctx.save();ctx.beginPath();ctx.rect(x+6,y+6,cellW-12,cellH-12);ctx.clip();drawContained(ctx,memory.image,x+18,y+35,cellW-36,cellH-88,8);ctx.restore();
-        ctx.fillStyle=dark?'#fff':'#171717';ctx.font='650 21px system-ui, sans-serif';ctx.fillText(fitShareText(ctx,memory.item.title,cellW-36),x+18,y+cellH-24);
+        ctx.save();ctx.translate(x+cellW*.53,y+cellH*.45);ctx.rotate(((index%5)-2)*.06);ctx.translate(-cellW*.53,-cellH*.45);drawContained(ctx,memory.image,x-16,y-8,cellW+42,cellH+38,5);ctx.restore();
+        ctx.fillStyle=dark?'#fff':'#171717';ctx.font='500 16px system-ui, sans-serif';ctx.fillText(fitShareText(ctx,memory.item.summary||memory.item.title,cellW-28),x+14,y+cellH-20);
       }else{
-        ctx.fillStyle=dark?'rgba(255,255,255,.88)':'rgba(23,23,23,.8)';ctx.font='600 25px Georgia, serif';ctx.fillText(prompts[index%prompts.length],x+22,y+cellH-28);
+        ctx.fillStyle=dark?'rgba(255,255,255,.88)':'rgba(23,23,23,.85)';ctx.font='500 17px system-ui, sans-serif';ctx.fillText(prompts[index%prompts.length],x+14,y+cellH-22);
       }
     }
-    ctx.fillStyle='#171717';ctx.font='500 22px system-ui, sans-serif';ctx.fillText(`本局收集 ${chosen.length} 段回忆 · ${new Date().getFullYear()}`,78,1245);
-    ctx.font='400 18px system-ui, sans-serif';ctx.fillStyle='#777';ctx.fillText('每一次讲述，都会让这张棋盘继续生长。',78,1284);
+    ctx.fillStyle='#fff';ctx.font='700 30px monospace';ctx.fillText('Goal',18,72);
+    ctx.fillStyle='#050505';ctx.font='700 30px monospace';ctx.fillText('Start',18,1042);
     shareDataUrl=canvas.toDataURL('image/png');$('.share-preview').src=shareDataUrl;
     canvas.toBlob(blob=>{
       if(shareBlobUrl)URL.revokeObjectURL(shareBlobUrl);
@@ -336,5 +335,5 @@
   $('.share-back').addEventListener('click',goHome);
   $('.share-reroll').addEventListener('click',()=>{$('.share-preview-wrap').classList.remove('is-ready');generateShareGame();});
 
-  window.GatherExperience={openCapture,openInterview,openDetail};
+  window.GatherExperience={openCapture,openInterview,openDetail,openShareGame};
 })();
