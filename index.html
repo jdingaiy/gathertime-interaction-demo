@@ -886,7 +886,7 @@
     homeTopPanel.addEventListener('pointercancel',finishPanelPull);
     // Some mobile simulators dispatch Touch Events without a usable Pointer Event stream.
     homeTopPanel.addEventListener('touchstart',event=>{
-      if(panelPullPointer!==null||!homeTopPanel.classList.contains('is-ready'))return;
+      if(!homeTopPanel.classList.contains('is-ready'))return;
       panelTouchStartY=event.touches[0]?.clientY??null;
       if(panelTouchStartY!==null)setPullProgress(0);
     },{passive:true});
