@@ -15,6 +15,7 @@ body.home-top-visible #home-brand { opacity: 0; transform: translateY(-8px); poi
 #home-top-panel::before { content:""; position:absolute; left:0; right:0; bottom:100%; height:100vh; background:inherit; pointer-events:none; }
 #home-top-panel > img { width: min(104px,26vw); filter: invert(1); }
 #home-top-panel:not(.is-ready) { pointer-events: none; }
+#mobile-status-surface { display: none; }
 #share-pull-overlay { position: fixed; inset: 0; z-index: 295; background: rgba(154,154,154,.78); backdrop-filter: grayscale(1) brightness(.78) blur(1px); opacity: 0; pointer-events: none; transition: opacity .16s linear; }
 #share-pull-overlay.is-active { display: block; }
 #share-pull-overlay.is-committing { transition-duration: .16s; }
@@ -193,6 +194,14 @@ body.experience-open #settings-panel { opacity: 0; pointer-events: none; }
 .share-actions button,.share-actions a { display: inline-flex; align-items: center; justify-content: center; gap: 7px; text-decoration: none; }
 .share-actions .material-symbols-rounded { font-size: 20px; }
 @media (max-width:600px) {
+  #mobile-status-surface {
+    position: fixed; left: 0; right: 0; top: 0; z-index: 294; display: block;
+    height: max(44px,env(safe-area-inset-top)); pointer-events: none;
+    background: rgba(255,255,255,.76); backdrop-filter: blur(18px) saturate(1.08);
+    transition: background .2s ease, backdrop-filter .2s ease;
+  }
+  body.home-top-visible:not(.experience-open) #mobile-status-surface { background: #111; backdrop-filter: none; }
+  body.experience-open #mobile-status-surface { background: #fff; backdrop-filter: none; }
   #home-brand { width: 88px; left: 16px; top: 16px; }
   #home-top-panel { border-radius: 0 0 46px 46px; }
   #add-memory-button { width: 54px; height: 54px; }
