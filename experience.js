@@ -104,14 +104,14 @@
   root.className = 'is-home';
   root.innerHTML = `
     <section id="capture-view" class="experience-view" aria-hidden="true">
-      <header class="experience-header is-light"><button class="icon-button capture-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header>
+      <header class="experience-header is-light"><button class="icon-button capture-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg?v=20260921-2" alt="Gather"><span style="width:44px"></span></header>
       <div class="capture-shell">
         <div class="camera-stage"><div class="camera-grid"></div><div class="camera-guide object-mode"></div><div class="camera-hint">将物品放在轮廓中央，保持背景简洁</div><div class="capture-modes"><button class="capture-mode is-active" data-mode="object">收藏物品</button><button class="capture-mode" data-mode="photo">扫描照片</button></div><div class="capture-processing" aria-hidden="true"><img alt=""><i></i></div></div>
         <div class="capture-controls"><span></span><button class="shutter" aria-label="拍摄"></button><label class="repair-toggle"><span>AI 修复</span><button class="switch" type="button" aria-label="切换 AI 修复"></button></label></div>
       </div>
     </section>
     <section id="interview-view" class="experience-view" aria-hidden="true">
-      <header class="experience-header"><button class="icon-button interview-back" aria-label="返回"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header>
+      <header class="experience-header"><button class="icon-button interview-back" aria-label="返回"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg?v=20260921-2" alt="Gather"><span style="width:44px"></span></header>
       <div class="interview-shell"><div class="subject-stage"><div class="ripple-field"><span></span><span></span><span></span><span></span></div><img class="subject-float" alt="采访对象"></div>
         <div class="interview-panel">
           <div class="interview-ready"><div class="mode-switcher" role="tablist" aria-label="录音模式"><button data-mode="record" class="is-active" role="tab" aria-selected="true">听你们聊聊</button><button data-mode="ai" role="tab" aria-selected="false">和我聊聊</button></div><div class="mode-dots" aria-hidden="true"><i class="is-active"></i><i></i></div><button class="record-button start-interview" aria-label="开始录音"><span class="material-symbols-rounded">mic</span></button></div>
@@ -119,8 +119,8 @@
         </div>
       </div>
     </section>
-    <section id="detail-view" class="experience-view" aria-hidden="true"><header class="experience-header"><img class="brand-image" src="assets/Gather.svg" alt="Gather"></header><div class="experience-scroll"><article class="detail-page"></article></div></section>
-    <section id="share-view" class="experience-view" aria-hidden="true"><header class="experience-header"><button class="icon-button share-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg" alt="Gather"><span style="width:44px"></span></header><div class="share-shell"><div class="share-preview-wrap is-ready"><img class="share-preview" src="assets/share-game-placeholder.png" alt="人生游戏回忆分享图"></div><div class="share-actions"><a class="primary-button share-download" href="assets/share-game-placeholder.png" download="GatherTime-人生游戏.png">下载分享图</a><button class="secondary-button share-reroll">换一换</button></div></div></section>
+    <section id="detail-view" class="experience-view" aria-hidden="true"><header class="experience-header"><img class="brand-image" src="assets/Gather.svg?v=20260921-2" alt="Gather"></header><div class="experience-scroll"><article class="detail-page"></article></div></section>
+    <section id="share-view" class="experience-view" aria-hidden="true"><header class="experience-header"><button class="icon-button share-back" aria-label="返回主页"><span class="material-symbols-rounded">arrow_back</span></button><img class="brand-image" src="assets/Gather.svg?v=20260921-2" alt="Gather"><span style="width:44px"></span></header><div class="share-shell"><div class="share-preview-wrap is-ready"><img class="share-preview" src="assets/share-game-placeholder.png" alt="人生游戏回忆分享图"></div><div class="share-actions"><a class="primary-button share-download" href="assets/share-game-placeholder.png" download="GatherTime-人生游戏.png">下载分享图</a><button class="secondary-button share-reroll">换一换</button></div></div></section>
     <div class="toast-message"></div>`;
   document.body.appendChild(root);
 
