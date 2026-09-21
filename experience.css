@@ -139,8 +139,18 @@ body.experience-open #settings-panel { opacity: 0; pointer-events: none; }
 .live-wave i { width: 2px; height: var(--h); border-radius: 4px; background: #555; animation: live-wave .62s ease-in-out infinite alternate; animation-delay: calc(var(--i)*-35ms); }
 @keyframes live-wave { to { transform: scaleY(.35); opacity: .42; } }
 .record-meta { margin-bottom: 18px; color: #777; font-variant-numeric: tabular-nums; }
-.finish-row { display: flex; justify-content: center; gap: 10px; }
+.answer-input-wrap { position:relative; display:block; margin:0 auto 10px; width:min(100%,420px); }
+.interview-answer { display:block; width:100%; resize:none; min-height:78px; padding:13px 46px 13px 14px; border:1px solid #d4d4d1; border-radius:16px; color:#171717; background:rgba(255,255,255,.92); font:15px/1.55 inherit; outline:none; }
+.interview-answer:focus { border-color:#777; }
+.speech-input { position:absolute; right:8px; bottom:9px; display:grid; place-items:center; width:32px; height:32px; padding:0; border:0; border-radius:50%; color:#555; background:#efefed; cursor:pointer; }
+.speech-input .material-symbols-rounded { font-size:19px; }
+.interview-status { min-height:20px; margin:0 0 10px; color:#777; font-size:12px; line-height:1.4; }
+.interview-status.is-error { color:#a2332c; }
+.finish-row { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; }
+.finish-row .primary-button,.finish-row .secondary-button,.finish-row .plain-button { min-height:40px; padding:0 14px; font-size:13px; }
+.finish-row .finish-interview { flex-basis:100%; color:#777; }
 .interview-running .record-button { width: 64px; height: 64px; background: #444; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 
 /* Detail */
 #detail-view { background: #fff; color-scheme: light; }
@@ -161,6 +171,8 @@ body.experience-open #settings-panel { opacity: 0; pointer-events: none; }
 .detail-body { max-width: 620px; }
 .detail-body p { margin: 0 0 1.25em; color: #292929; font-family: Georgia,"Noto Serif SC",serif; font-size: 17px; line-height: 1.92; }
 .detail-body h2 { margin: 2.4em 0 .8em; font-size: 23px; }
+.needs-confirmation { max-width:620px; margin:0 0 32px; padding:12px 14px; border-left:3px solid #999; color:#666; background:#f6f6f4; font-size:13px; line-height:1.6; }
+.needs-confirmation strong { margin-right:8px; color:#333; }
 #detail-view .experience-header { justify-content: center; }
 
 /* Keep native scrolling available, without exposing a desktop-style rail. */
