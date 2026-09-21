@@ -115,7 +115,7 @@
       <div class="interview-shell"><div class="subject-stage"><div class="ripple-field"><span></span><span></span><span></span><span></span></div><img class="subject-float" alt="采访对象"></div>
         <div class="interview-panel">
           <div class="interview-ready"><div class="mode-switcher" role="tablist" aria-label="录音模式"><button data-mode="record" class="is-active" role="tab" aria-selected="true">听你们聊聊</button><button data-mode="ai" role="tab" aria-selected="false">和我聊聊</button></div><div class="mode-dots" aria-hidden="true"><i class="is-active"></i><i></i></div><button class="record-button start-interview" aria-label="开始录音"><span class="material-symbols-rounded">mic</span></button></div>
-          <div class="interview-running"><div class="question-number"></div><div class="question-text"></div><div class="live-wave">${bars.map((h,i)=>`<i style="--h:${h}px;--i:${i}"></i>`).join('')}</div><div class="record-meta">00:00</div><label class="answer-input-wrap"><span class="sr-only">你的回答</span><textarea class="interview-answer" rows="3" placeholder="说说你记得的事情…"></textarea><button class="speech-input" type="button" aria-label="语音输入"><span class="material-symbols-rounded">mic</span></button></label><p class="interview-status" role="status"></p><div class="finish-row"><button class="secondary-button skip-answer" type="button">跳过</button><button class="primary-button next-answer" type="button">提交回答</button><button class="plain-button finish-interview" type="button">结束并生成回忆</button></div></div>
+          <div class="interview-running"><div class="question-number"></div><div class="question-text"></div><div class="live-wave">${bars.map((h,i)=>`<i style="--h:${h}px;--i:${i}"></i>`).join('')}</div><div class="record-meta">00:00</div><p class="interview-status" role="status"></p><div class="finish-row"><button class="record-button next-answer" type="button" aria-label="按住或点击开始说话"><span class="material-symbols-rounded">mic</span></button></div></div>
         </div>
       </div>
     </section>
@@ -150,7 +150,10 @@
       try {
         const response = await fetch(`${this.baseUrl}/${path}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal});
         const data = await response.json().catch(()=>({}));
-        if(!response.ok) throw new Error(data?.msg || data?.detail?.error_message || `请求失败（${response.status}）`);
+        if(!response.ok) {
+          if(response.status===405 && this.baseUrl==='/api/gathertime') throw new Error('采访服务尚未部署：GitHub Pages 不能处理 AI 请求');
+          throw new Error(data?.msg || data?.detail?.error_message || `请求失败（${response.status}）`);
+        }
         return data;
       } catch(error) {
         if(error.name === 'AbortError') throw new Error('AI 响应超时，请稍后重试');
@@ -225,7 +228,7 @@
     $('.interview-ready').classList.remove('is-hidden');
     $('.interview-running').classList.remove('is-visible');
     $('.interview-shell').classList.remove('is-recording');
-    $('.interview-answer').value=''; $('.interview-status').textContent='';
+    $('.interview-status').textContent='';
     setInterviewMode('record');
   }
   function setInterviewMode(mode) {
@@ -246,7 +249,7 @@
   }
   function setInterviewBusy(busy) {
     interviewBusy=busy;
-    root.querySelectorAll('.interview-running button,.interview-answer').forEach(el=>el.disabled=busy);
+    root.querySelectorAll('.interview-running button').forEach(el=>el.disabled=busy);
   }
   function transcriptFromContext(context) {
     return (context?.conversation||[]).map(turn=>`${turn.role==='assistant'?'采访：':'回答：'}${turn.text}`).join('\n');
@@ -272,16 +275,15 @@
     } finally { setInterviewBusy(false); }
   }
   function stopInterviewTimer(){clearInterval(interviewTimer);interviewTimer=0;}
-  async function nextInterviewStep(action='answer') {
+  async function nextInterviewStep(action='answer', voiceAnswer='') {
     if(interviewBusy||!aiSession?.context)return;
-    const answer=$('.interview-answer').value.trim();
-    if(action==='answer'&&!answer){setInterviewStatus('先写下一点你记得的事，再提交。',true);return;}
+    const answer=voiceAnswer.trim();
+    if(action==='answer'&&!answer){setInterviewStatus('没有听清，请再说一次。',true);return;}
     setInterviewBusy(true);setInterviewStatus(action==='skip'?'正在换一个问题…':'正在整理你的回答…');
     try {
       const turn=await aiClient.interviewTurn({memory_context:aiSession.context,user_answer:answer,action});
       const result=turn.result;
       aiSession.context=result.memory_context;
-      $('.interview-answer').value='';
       if(result.status==='ready_to_generate') { setInterviewStatus(result.summary_prompt||'采访已完成，正在生成回忆录。'); await generateHistory(true); return; }
       questionIndex++;$('.question-number').textContent=String(questionIndex+1).padStart(2,'0');
       $('.question-text').classList.add('is-changing');
@@ -410,16 +412,15 @@
   $('.interview-shell').addEventListener('pointerup',event=>{if(swipeStartX===null)return;const delta=event.clientX-swipeStartX;swipeStartX=null;if(Math.abs(delta)>44)setInterviewMode(delta<0?'ai':'record');});
   $('.interview-shell').addEventListener('pointercancel',()=>{swipeStartX=null;});
   $('.start-interview').addEventListener('click',startInterview);
-  $('.next-answer').addEventListener('click',()=>nextInterviewStep('answer'));
-  $('.skip-answer').addEventListener('click',()=>nextInterviewStep('skip'));
-  $('.finish-interview').addEventListener('click',()=>nextInterviewStep('finish'));
-  $('.speech-input').addEventListener('click',()=>{
+  $('.next-answer').addEventListener('click',()=>{
     const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!Recognition){setInterviewStatus('当前浏览器不支持语音输入，请直接输入文字。',true);return;}
+    if(!Recognition){setInterviewStatus('当前浏览器不支持语音输入。请使用 Chrome 或 Safari 的语音识别功能。',true);return;}
     const recognition=new Recognition();recognition.lang='zh-CN';recognition.interimResults=false;recognition.maxAlternatives=1;
-    recognition.onstart=()=>setInterviewStatus('正在听…');
-    recognition.onresult=event=>{$('.interview-answer').value+=event.results[0][0].transcript;setInterviewStatus('');};
-    recognition.onerror=()=>setInterviewStatus('没有识别清楚，请再试一次或直接输入。',true);recognition.start();
+    recognition.onstart=()=>{setInterviewStatus('正在听…');$('.next-answer').classList.add('is-listening');};
+    recognition.onresult=event=>{const answer=event.results[0][0].transcript;setInterviewStatus('');nextInterviewStep('answer',answer);};
+    recognition.onerror=()=>setInterviewStatus('没有识别清楚，请再说一次。',true);
+    recognition.onend=()=>$('.next-answer').classList.remove('is-listening');
+    recognition.start();
   });
   $('.share-back').addEventListener('click',goHome);
   $('.share-reroll').addEventListener('click',()=>showToast('更多人生游戏样式即将加入'));
