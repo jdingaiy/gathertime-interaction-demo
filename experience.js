@@ -283,12 +283,6 @@
     $('.next-answer').classList.toggle('is-listening',listening);
     $('.interview-shell').classList.toggle('has-active-audio',listening);
   }
-  function releaseSpeechRecognition() {
-    if(recognition) { try { recognition.abort(); } catch {} }
-    recognition=null;
-    setListening(false);
-    if(!interviewBusy) setAnswerButton('mic','开始说话');
-  }
   function transcriptFromContext(context) {
     return (context?.conversation||[]).map(turn=>`${turn.role==='assistant'?'采访：':'回答：'}${turn.text}`).join('\n');
   }
@@ -300,9 +294,8 @@
     $('.question-text').textContent=interviewMode==='ai'?'正在准备问题…':'';
     setAnswerButton(interviewMode==='record'?'stop':'progress_activity',interviewMode==='record'?'结束录音':'正在生成问题');
     $('.record-meta').textContent='00:00';
-    interviewTimer=setInterval(()=>{interviewSeconds++;$('.record-meta').textContent=`${String(Math.floor(interviewSeconds/60)).padStart(2,'0')}:${String(interviewSeconds%60).padStart(2,'0')}`;},1000);
     if(interviewMode==='record') {
-      await beginAudioRecording();
+      await beginAudioRecording(processRecordedAudio);
       return;
     }
     setInterviewBusy(true);setInterviewStatus('正在理解这张图片…');
@@ -319,6 +312,10 @@
       setInterviewBusy(false);
       if(aiSession?.context) setAnswerButton('mic','开始说话');
     }
+  }
+  function startInterviewTimer(){
+    stopInterviewTimer();interviewSeconds=0;$('.record-meta').textContent='00:00';
+    interviewTimer=setInterval(()=>{interviewSeconds++;$('.record-meta').textContent=`${String(Math.floor(interviewSeconds/60)).padStart(2,'0')}:${String(interviewSeconds%60).padStart(2,'0')}`;},1000);
   }
   function stopInterviewTimer(){clearInterval(interviewTimer);interviewTimer=0;}
   async function nextInterviewStep(action='answer', voiceAnswer='') {
@@ -366,7 +363,7 @@
       setInterviewBusy(false);setAnswerButton('mic','重新录音');
     }
   }
-  async function beginAudioRecording() {
+  async function beginAudioRecording(onComplete) {
     if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       setInterviewStatus('当前浏览器不支持录音，请使用 Safari 或 Chrome。',true);
       setAnswerButton('mic','重新开始录音');
@@ -377,14 +374,13 @@
       recordingChunks=[];
       mediaRecorder=new MediaRecorder(mediaStream);
       mediaRecorder.ondataavailable=event=>{ if(event.data.size) recordingChunks.push(event.data); };
-      mediaRecorder.onstart=()=>{ setListening(true); setInterviewStatus(''); setAnswerButton('stop','结束录音'); };
-      mediaRecorder.onstop=()=>{
+      mediaRecorder.onstart=()=>{ startInterviewTimer();setListening(true); setInterviewStatus(''); setAnswerButton('stop','结束录音'); };
+      mediaRecorder.onstop=async ()=>{
         setListening(false);
+        stopInterviewTimer();
         mediaStream?.getTracks().forEach(track=>track.stop()); mediaStream=null;
-        setAnswerButton('progress_activity','正在整理录音');
-        setInterviewBusy(true);
-        setInterviewStatus('正在上传并转写录音…');
-        processRecordedAudio(new Blob(recordingChunks,{type:mediaRecorder.mimeType||'audio/webm'}));
+        const audioBlob=new Blob(recordingChunks,{type:mediaRecorder.mimeType||'audio/webm'});
+        await onComplete(audioBlob);
       };
       mediaRecorder.start();
     } catch(error) {
@@ -397,12 +393,26 @@
   }
   async function processRecordedAudio(audioBlob) {
     try {
+      setInterviewBusy(true);setInterviewStatus('正在上传并转写录音…');
       const audioFile=await aiClient.uploadAudio(audioBlob);
       const transcription=await aiClient.transcribe({audio_file:audioFile,language:'zh-CN'});
       if(!transcription.transcript?.trim()) throw new Error('没有识别到有效语音，请重新录制。');
       setInterviewStatus('转写完成，正在整理回忆…');
       const prep=await aiClient.prepare({image_url:{url:new URL(currentSubject.src,document.baseURI).href,file_type:'image'},asset_type:currentSubject.type==='photo'?'photo':'object',user_hint:currentSubject.title,memory_id:crypto.randomUUID()});
       await generateHistoryFromTranscript(transcription.transcript,prep.memory_context);
+    } catch(error) {
+      setInterviewStatus(error.message||'录音处理失败，请重试',true);
+      setInterviewBusy(false);setAnswerButton('mic','重新录音');
+    }
+  }
+  async function processInterviewAnswer(audioBlob) {
+    try {
+      setInterviewBusy(true);setInterviewStatus('正在上传并转写回答…');
+      const audioFile=await aiClient.uploadAudio(audioBlob);
+      const transcription=await aiClient.transcribe({audio_file:audioFile,language:'zh-CN'});
+      if(!transcription.transcript?.trim()) throw new Error('没有识别到有效语音，请重新录制。');
+      setInterviewBusy(false);
+      await nextInterviewStep('answer',transcription.transcript);
     } catch(error) {
       setInterviewStatus(error.message||'录音处理失败，请重试',true);
       setInterviewBusy(false);setAnswerButton('mic','重新录音');
@@ -519,32 +529,11 @@
   $('.next-answer').addEventListener('click',()=>{
     if(interviewMode==='record') {
       if(mediaRecorder?.state==='recording') stopAudioRecording();
-      else startInterview();
+      else beginAudioRecording(processRecordedAudio);
       return;
     }
-    if(recognition) { recognition.stop(); return; }
-    const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!Recognition){setInterviewStatus('当前 iPhone 浏览器不提供网页语音转写；录音本身可用，但需要接入语音转写工作流后才能生成回忆录。',true);return;}
-    recognition=new Recognition();recognition.lang='zh-CN';recognition.interimResults=false;recognition.maxAlternatives=1;
-    recognition.onstart=()=>{setInterviewStatus('正在听…');setListening(true);setAnswerButton('stop','结束说话');};
-    recognition.onresult=event=>{const answer=event.results[0][0].transcript;setInterviewStatus('');nextInterviewStep('answer',answer);};
-    recognition.onerror=event=>{
-      const messages={
-        'no-speech':'没有检测到说话声，请靠近麦克风后重试。',
-        'not-allowed':'未获得麦克风权限，请在浏览器设置中允许录音。',
-        'service-not-allowed':'当前浏览器不允许网页语音转写，请使用录音模式。',
-        'network':'语音转写服务暂时不可用，请稍后重试。'
-      };
-      setInterviewStatus(messages[event.error]||'语音识别未完成，请再试一次。',true);
-      // iOS may keep a failed SpeechRecognition instance in a non-restartable state.
-      releaseSpeechRecognition();
-    };
-    recognition.onend=()=>releaseSpeechRecognition();
-    try { recognition.start(); }
-    catch(error) {
-      releaseSpeechRecognition();
-      setInterviewStatus('语音服务刚刚结束，请点话筒重新开始。',true);
-    }
+    if(mediaRecorder?.state==='recording') stopAudioRecording();
+    else beginAudioRecording(processInterviewAnswer);
   });
   $('.share-back').addEventListener('click',goHome);
   $('.share-reroll').addEventListener('click',()=>showToast('更多人生游戏样式即将加入'));
