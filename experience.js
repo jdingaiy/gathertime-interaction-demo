@@ -283,6 +283,12 @@
     $('.next-answer').classList.toggle('is-listening',listening);
     $('.interview-shell').classList.toggle('has-active-audio',listening);
   }
+  function releaseSpeechRecognition() {
+    if(recognition) { try { recognition.abort(); } catch {} }
+    recognition=null;
+    setListening(false);
+    if(!interviewBusy) setAnswerButton('mic','开始说话');
+  }
   function transcriptFromContext(context) {
     return (context?.conversation||[]).map(turn=>`${turn.role==='assistant'?'采访：':'回答：'}${turn.text}`).join('\n');
   }
@@ -530,9 +536,15 @@
         'network':'语音转写服务暂时不可用，请稍后重试。'
       };
       setInterviewStatus(messages[event.error]||'语音识别未完成，请再试一次。',true);
+      // iOS may keep a failed SpeechRecognition instance in a non-restartable state.
+      releaseSpeechRecognition();
     };
-    recognition.onend=()=>{recognition=null;setListening(false);if(!interviewBusy)setAnswerButton('mic','开始说话');};
-    recognition.start();
+    recognition.onend=()=>releaseSpeechRecognition();
+    try { recognition.start(); }
+    catch(error) {
+      releaseSpeechRecognition();
+      setInterviewStatus('语音服务刚刚结束，请点话筒重新开始。',true);
+    }
   });
   $('.share-back').addEventListener('click',goHome);
   $('.share-reroll').addEventListener('click',()=>showToast('更多人生游戏样式即将加入'));
