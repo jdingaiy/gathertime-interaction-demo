@@ -139,7 +139,8 @@ body.experience-open #settings-panel { opacity: 0; pointer-events: none; }
 .interview-shell.is-listening .live-wave { height: 54px; margin: 0 auto 18px; opacity: 1; }
 .live-wave i { width: 2px; height: var(--h); border-radius: 4px; background: #555; animation: live-wave .62s ease-in-out infinite alternate; animation-delay: calc(var(--i)*-35ms); }
 @keyframes live-wave { to { transform: scaleY(.35); opacity: .42; } }
-.record-meta { margin-bottom: 18px; color: #777; font-variant-numeric: tabular-nums; }
+.record-meta { display:none; margin-bottom: 18px; color: #777; font-variant-numeric: tabular-nums; }
+.interview-shell.has-active-audio .record-meta { display:block; }
 .interview-status { min-height:18px; margin:0 0 10px; color:#777; font-size:12px; line-height:1.4; }
 .interview-status.is-error { color:#a2332c; }
 .finish-row { display:flex; justify-content:center; gap:8px; }
