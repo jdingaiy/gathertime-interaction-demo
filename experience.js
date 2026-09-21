@@ -115,7 +115,7 @@
       <div class="interview-shell"><div class="subject-stage"><div class="ripple-field"><span></span><span></span><span></span><span></span></div><img class="subject-float" alt="采访对象"></div>
         <div class="interview-panel">
           <div class="interview-ready"><div class="mode-switcher" role="tablist" aria-label="录音模式"><button data-mode="record" class="is-active" role="tab" aria-selected="true">听你们聊聊</button><button data-mode="ai" role="tab" aria-selected="false">和我聊聊</button></div><div class="mode-dots" aria-hidden="true"><i class="is-active"></i><i></i></div><button class="record-button start-interview" aria-label="开始录音"><span class="material-symbols-rounded">mic</span></button></div>
-          <div class="interview-running"><div class="question-number"></div><div class="question-text"></div><div class="live-wave">${bars.map((h,i)=>`<i style="--h:${h}px;--i:${i}"></i>`).join('')}</div><div class="record-meta">00:00</div><div class="finish-row"><button class="record-button next-answer" aria-label="结束录音"><span class="material-symbols-rounded">stop</span></button></div></div>
+          <div class="interview-running"><div class="question-number"></div><div class="question-text"></div><div class="live-wave">${bars.map((h,i)=>`<i style="--h:${h}px;--i:${i}"></i>`).join('')}</div><div class="record-meta">00:00</div><label class="answer-input-wrap"><span class="sr-only">你的回答</span><textarea class="interview-answer" rows="3" placeholder="说说你记得的事情…"></textarea><button class="speech-input" type="button" aria-label="语音输入"><span class="material-symbols-rounded">mic</span></button></label><p class="interview-status" role="status"></p><div class="finish-row"><button class="secondary-button skip-answer" type="button">跳过</button><button class="primary-button next-answer" type="button">提交回答</button><button class="plain-button finish-interview" type="button">结束并生成回忆</button></div></div>
         </div>
       </div>
     </section>
@@ -139,6 +139,30 @@
   let swipeStartX = null;
   let shareDataUrl = '';
   let shareBlobUrl = '';
+  let aiSession = null;
+  let interviewBusy = false;
+
+  class GatherTimeClient {
+    constructor(baseUrl = window.GATHERTIME_API_BASE || '/api/gathertime') { this.baseUrl = baseUrl.replace(/\/$/, ''); }
+    async post(path, payload) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120000);
+      try {
+        const response = await fetch(`${this.baseUrl}/${path}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal});
+        const data = await response.json().catch(()=>({}));
+        if(!response.ok) throw new Error(data?.msg || data?.detail?.error_message || `请求失败（${response.status}）`);
+        return data;
+      } catch(error) {
+        if(error.name === 'AbortError') throw new Error('AI 响应超时，请稍后重试');
+        throw error;
+      } finally { clearTimeout(timeout); }
+    }
+    prepare(input) { return this.post('prepare',input); }
+    interviewTurn(input) { return this.post('interview',input); }
+    generateHistory(input) { return this.post('generate',input); }
+  }
+  const aiClient = new GatherTimeClient();
+  const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 
   const subjectFromItem = item => {
     const key = `${item.type}-${item.sourceIndex}`;
@@ -196,10 +220,12 @@
 
   function configureInterview(subject) {
     currentSubject=subject;
+    aiSession=null; interviewBusy=false;
     $('.subject-float').src=subject.src;
     $('.interview-ready').classList.remove('is-hidden');
     $('.interview-running').classList.remove('is-visible');
     $('.interview-shell').classList.remove('is-recording');
+    $('.interview-answer').value=''; $('.interview-status').textContent='';
     setInterviewMode('record');
   }
   function setInterviewMode(mode) {
@@ -215,23 +241,66 @@
     if(!subject)return;
     configureInterview(subject);showView('interview');
   }
-  function startInterview() {
+  function setInterviewStatus(message, isError=false) {
+    const status=$('.interview-status'); status.textContent=message; status.classList.toggle('is-error',isError);
+  }
+  function setInterviewBusy(busy) {
+    interviewBusy=busy;
+    root.querySelectorAll('.interview-running button,.interview-answer').forEach(el=>el.disabled=busy);
+  }
+  function transcriptFromContext(context) {
+    return (context?.conversation||[]).map(turn=>`${turn.role==='assistant'?'采访：':'回答：'}${turn.text}`).join('\n');
+  }
+  async function startInterview() {
+    if(interviewBusy)return;
     interviewSeconds=0;questionIndex=0;
     $('.interview-ready').classList.add('is-hidden');$('.interview-running').classList.add('is-visible');$('.interview-shell').classList.add('is-recording');
-    $('.question-number').textContent=interviewMode==='ai'?'01':'';
-    $('.question-text').textContent=interviewMode==='ai'?questions[0]:'';
-    $('.next-answer').setAttribute('aria-label',interviewMode==='ai'?'完成当前回答':'结束录音');
-    $('.next-answer .material-symbols-rounded').textContent=interviewMode==='ai'?'arrow_forward':'stop';
+    $('.question-number').textContent='01';
+    $('.question-text').textContent='正在准备问题…';
+    $('.next-answer').textContent='提交回答';
     $('.record-meta').textContent='00:00';
     interviewTimer=setInterval(()=>{interviewSeconds++;$('.record-meta').textContent=`${String(Math.floor(interviewSeconds/60)).padStart(2,'0')}:${String(interviewSeconds%60).padStart(2,'0')}`;},1000);
+    setInterviewBusy(true);setInterviewStatus('正在理解这张图片…');
+    try {
+      const prep=await aiClient.prepare({image_url:{url:new URL(currentSubject.src,document.baseURI).href,file_type:'image'},asset_type:currentSubject.type==='photo'?'photo':'object',user_hint:currentSubject.title,memory_id:crypto.randomUUID()});
+      aiSession={context:prep.memory_context,visibleFacts:prep.visible_facts||[],hypotheses:prep.hypotheses_to_confirm||[]};
+      $('.question-text').textContent=prep.first_question||'你最想从哪里开始讲起？';
+      setInterviewStatus(aiSession.visibleFacts.length?`识别到：${aiSession.visibleFacts[0]}`:'');
+    } catch(error) {
+      $('.question-text').textContent='暂时无法连接采访服务';
+      setInterviewStatus(error.message || '请检查 AI 服务配置后重试',true);
+    } finally { setInterviewBusy(false); }
   }
   function stopInterviewTimer(){clearInterval(interviewTimer);interviewTimer=0;}
-  function nextInterviewStep() {
-    if(interviewMode==='ai'&&questionIndex<questions.length-1){
-      questionIndex++;$('.question-number').textContent=String(questionIndex+1).padStart(2,'0');$('.question-text').classList.add('is-changing');
-      setTimeout(()=>{if(currentView==='interview'){$('.question-text').textContent=questions[questionIndex];$('.question-text').classList.remove('is-changing');if(questionIndex===questions.length-1){$('.next-answer').setAttribute('aria-label','结束访谈');$('.next-answer .material-symbols-rounded').textContent='stop';}}},220);return;
-    }
-    finishInterview();
+  async function nextInterviewStep(action='answer') {
+    if(interviewBusy||!aiSession?.context)return;
+    const answer=$('.interview-answer').value.trim();
+    if(action==='answer'&&!answer){setInterviewStatus('先写下一点你记得的事，再提交。',true);return;}
+    setInterviewBusy(true);setInterviewStatus(action==='skip'?'正在换一个问题…':'正在整理你的回答…');
+    try {
+      const turn=await aiClient.interviewTurn({memory_context:aiSession.context,user_answer:answer,action});
+      const result=turn.result;
+      aiSession.context=result.memory_context;
+      $('.interview-answer').value='';
+      if(result.status==='ready_to_generate') { setInterviewStatus(result.summary_prompt||'采访已完成，正在生成回忆录。'); await generateHistory(true); return; }
+      questionIndex++;$('.question-number').textContent=String(questionIndex+1).padStart(2,'0');
+      $('.question-text').classList.add('is-changing');
+      setTimeout(()=>{$('.question-text').textContent=result.next_question||'还有什么想补充的吗？';$('.question-text').classList.remove('is-changing');},180);
+      setInterviewStatus('');
+    } catch(error) { setInterviewStatus(error.message||'提交失败，请重试',true); }
+    finally { setInterviewBusy(false); }
+  }
+  async function generateHistory(force=false) {
+    if((interviewBusy&&!force)||!aiSession?.context)return;
+    setInterviewBusy(true);setInterviewStatus('正在生成回忆录…');
+    try {
+      const context=aiSession.context;
+      const history=await aiClient.generateHistory({memory_context:context,user_confirmed_facts:(context.confirmed_facts||[]).map(f=>({field:f.field,value:f.value})),transcript:transcriptFromContext(context)});
+      currentSubject.history={title:history.title,deck:history.deck,paragraphs:String(history.article||'').split(/\n\s*\n/).filter(Boolean)};
+      currentSubject.summary=history.deck||currentSubject.summary;
+      currentSubject.needsConfirmation=history.needs_confirmation||[];
+      finishInterview();
+    } catch(error) { setInterviewStatus(error.message||'生成失败，请重试',true);setInterviewBusy(false); }
   }
   function ensureSubjectOnHome() {
     if(!currentSubject)return;
@@ -322,7 +391,8 @@
     currentSubject=subject;
     const history=subject.history||histories[subject.key];
     const duration=88+(subject.sourceIndex*17)%92;
-    $('.detail-page').innerHTML=`<div class="detail-hero"><div class="detail-meta"><span class="detail-label">${subject.title}</span><span class="detail-time">${subject.time}</span></div><img class="detail-subject" src="${subject.src}" alt="${subject.title}"></div><div class="detail-number">${String(subject.order||1).padStart(2,'0')}</div><h1 class="detail-title">${history.title}</h1><p class="detail-deck">${history.deck}</p><div class="detail-actions">${audioMarkup(duration)}<button class="interview-entry detail-interview-entry" type="button" aria-label="再次录音"><span class="material-symbols-rounded">mic</span></button></div><div class="detail-body">${history.paragraphs.map((p,i)=>`${i===1?'<h2>记忆里的细节</h2>':''}<p>${p}</p>`).join('')}</div>`;
+    const confirmation=(subject.needsConfirmation||[]).length?`<aside class="needs-confirmation"><strong>待确认</strong>${subject.needsConfirmation.map(escapeHTML).join('、')}</aside>`:'';
+    $('.detail-page').innerHTML=`<div class="detail-hero"><div class="detail-meta"><span class="detail-label">${escapeHTML(subject.title)}</span><span class="detail-time">${escapeHTML(subject.time)}</span></div><img class="detail-subject" src="${escapeHTML(subject.src)}" alt="${escapeHTML(subject.title)}"></div><div class="detail-number">${String(subject.order||1).padStart(2,'0')}</div><h1 class="detail-title">${escapeHTML(history.title)}</h1><p class="detail-deck">${escapeHTML(history.deck)}</p><div class="detail-actions">${audioMarkup(duration)}<button class="interview-entry detail-interview-entry" type="button" aria-label="再次录音"><span class="material-symbols-rounded">mic</span></button></div>${confirmation}<div class="detail-body">${history.paragraphs.map((p,i)=>`${i===1?'<h2>记忆里的细节</h2>':''}<p>${escapeHTML(p)}</p>`).join('')}</div>`;
     bindSilentAudio($('.detail-audio'),duration);$('.detail-interview-entry').addEventListener('click',()=>openInterview(currentSubject));showView('detail');$('.experience-scroll').scrollTop=0;
   }
 
@@ -340,7 +410,17 @@
   $('.interview-shell').addEventListener('pointerup',event=>{if(swipeStartX===null)return;const delta=event.clientX-swipeStartX;swipeStartX=null;if(Math.abs(delta)>44)setInterviewMode(delta<0?'ai':'record');});
   $('.interview-shell').addEventListener('pointercancel',()=>{swipeStartX=null;});
   $('.start-interview').addEventListener('click',startInterview);
-  $('.next-answer').addEventListener('click',nextInterviewStep);
+  $('.next-answer').addEventListener('click',()=>nextInterviewStep('answer'));
+  $('.skip-answer').addEventListener('click',()=>nextInterviewStep('skip'));
+  $('.finish-interview').addEventListener('click',()=>nextInterviewStep('finish'));
+  $('.speech-input').addEventListener('click',()=>{
+    const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!Recognition){setInterviewStatus('当前浏览器不支持语音输入，请直接输入文字。',true);return;}
+    const recognition=new Recognition();recognition.lang='zh-CN';recognition.interimResults=false;recognition.maxAlternatives=1;
+    recognition.onstart=()=>setInterviewStatus('正在听…');
+    recognition.onresult=event=>{$('.interview-answer').value+=event.results[0][0].transcript;setInterviewStatus('');};
+    recognition.onerror=()=>setInterviewStatus('没有识别清楚，请再试一次或直接输入。',true);recognition.start();
+  });
   $('.share-back').addEventListener('click',goHome);
   $('.share-reroll').addEventListener('click',()=>showToast('更多人生游戏样式即将加入'));
 
