@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>GatherTime</title>
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=20260921-1" />
-  <link rel="stylesheet" href="experience.css?v=20260921-4">
+  <link rel="stylesheet" href="experience.css?v=20260921-5">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0" rel="stylesheet">
@@ -78,6 +78,7 @@
   </style>
 </head>
 <body>
+  <div id="mobile-status-surface" aria-hidden="true"></div>
   <main id="scene" aria-label="interactive floating objects"></main>
   <div id="home-top-panel" aria-label="下拉进入回忆分享">
     <img src="assets/Gather.svg?v=20260921-2" alt="Gather">
@@ -103,6 +104,7 @@
     const scene = document.querySelector('#scene');
     const homeTopPanel = document.querySelector('#home-top-panel');
     const sharePullOverlay = document.querySelector('#share-pull-overlay');
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     const root = document.documentElement;
     const settingsButton = document.querySelector('#settings-button');
     const settingsPanel = document.querySelector('#settings-panel');
@@ -164,6 +166,19 @@
     let panelPullDistance = 0;
     let panelPullPointer = null;
     let panelTouchStartY = null;
+    let scenePullPointer = null;
+    let scenePullStartY = 0;
+    function syncGatherTheme() {
+      const experienceView=document.body.dataset.experienceView||'home';
+      let color='#ffffff';
+      if(experienceView==='home'&&document.body.classList.contains('home-top-visible'))color='#111111';
+      else if(experienceView==='capture')color='#090909';
+      themeColorMeta?.setAttribute('content',color);
+    }
+    window.setGatherExperienceTheme=view=>{
+      document.body.dataset.experienceView=view;
+      syncGatherTheme();
+    };
     function decodeMask(value) {
       const binary=atob(value),bytes=new Uint8Array(binary.length);
       for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
@@ -208,6 +223,7 @@
       const fullyVisible=y>=-1;
       document.body.classList.toggle('home-top-visible',visible);
       homeTopPanel.classList.toggle('is-ready',fullyVisible);
+      syncGatherTheme();
     }
     function renderAll() { items.forEach(render); renderFocusUI(); renderHomePanel(); }
     function setSize(a, scale) {
@@ -793,8 +809,19 @@
       }
     });
     scene.addEventListener('pointermove', e => {
-      if(activeItem){
+      if(scenePullPointer===e.pointerId){
+        setPullProgress(e.clientY-scenePullStartY);
+      }else if(activeItem){
         const a=activeItem;
+        const totalX=e.clientX-pressStartX,totalY=e.clientY-pressStartY;
+        if(!dragStarted&&homeTopPanel.classList.contains('is-ready')&&totalY>10&&totalY>Math.abs(totalX)*1.15){
+          activeItem=null;
+          scenePullPointer=e.pointerId;
+          scenePullStartY=pressStartY;
+          setHovered(null);
+          setPullProgress(totalY);
+          return;
+        }
         if(!dragStarted&&Math.hypot(e.clientX-pressStartX,e.clientY-pressStartY)>=7){
           dragStarted=true;a.drag=true;a.z=++zCounter;a.el.style.zIndex=a.z;setHovered(null);a.el.classList.add('is-down');wake(900);
         }
@@ -804,11 +831,25 @@
         for(let step=0;step<steps;step++){a.x+=dx/steps;a.y+=dy/steps;resolveCollisions(a,4);}
         a.vx=a.vx*.35+dx*.65;a.vy=a.vy*.35+dy*.65;a.px=e.clientX;a.py=e.clientY;wake(900);
       }else if(camera.dragging){
-        camera.y+=e.clientY-camera.lastY;
+        const deltaY=e.clientY-camera.lastY;
+        if(homeTopPanel.classList.contains('is-ready')&&deltaY>0){
+          camera.dragging=false;scene.classList.remove('panning');
+          scenePullPointer=e.pointerId;scenePullStartY=camera.lastY;
+          setPullProgress(deltaY);
+          return;
+        }
+        camera.y+=deltaY;
         camera.lastX=e.clientX;camera.lastY=e.clientY;clampCameraY();renderAll();
       }else if(e.pointerType!=='touch')setHovered(hitItemAt(e.clientX,e.clientY));
     });
     function releasePointer(e) {
+      if(scenePullPointer===e.pointerId){
+        scenePullPointer=null;
+        if(e.type!=='pointercancel'&&panelPullDistance>=88)commitSharePull();
+        else resetSharePull();
+        try{scene.releasePointerCapture(e.pointerId);}catch{}
+        return;
+      }
       if(activeItem){
         const a=activeItem;
         if(dragStarted){
@@ -828,6 +869,14 @@
     scene.addEventListener('pointerleave',()=>{if(!activeItem&&!camera.dragging)setHovered(null);});
     let desktopPullTimer=0;
     let sharePullCommitting=false;
+    function resetSharePull(){
+      panelPullDistance=0;
+      sharePullOverlay.style.opacity='0';
+      homeTopPanel.style.removeProperty('--pull');
+      homeTopPanel.style.removeProperty('background');
+      homeTopPanel.style.removeProperty('opacity');
+      setTimeout(()=>sharePullOverlay.classList.remove('is-active'),220);
+    }
     function commitSharePull() {
       if(sharePullCommitting)return;
       sharePullCommitting=true;
@@ -845,7 +894,7 @@
         clearTimeout(desktopPullTimer);
         setPullProgress(panelPullDistance+Math.min(42,-e.deltaY*.5));
         if(panelPullDistance>=88){commitSharePull();return;}
-        desktopPullTimer=setTimeout(()=>{setPullProgress(0);sharePullOverlay.style.opacity='0';setTimeout(()=>sharePullOverlay.classList.remove('is-active'),220);},180);
+        desktopPullTimer=setTimeout(resetSharePull,180);
         return;
       }
       camera.y-=e.deltaY;
@@ -879,8 +928,7 @@
       if(shouldOpen){
         commitSharePull();
       }else{
-        sharePullOverlay.style.opacity='0';homeTopPanel.style.removeProperty('--pull');homeTopPanel.style.removeProperty('background');homeTopPanel.style.removeProperty('opacity');
-        setTimeout(()=>sharePullOverlay.classList.remove('is-active'),220);
+        resetSharePull();
       }
     }
     homeTopPanel.addEventListener('pointerup',finishPanelPull);
@@ -902,10 +950,7 @@
       if(panelTouchStartY===null)return;
       panelTouchStartY=null;
       if(panelPullDistance>=88){commitSharePull();return;}
-      sharePullOverlay.style.opacity='0';
-      homeTopPanel.style.removeProperty('--pull');
-      homeTopPanel.style.removeProperty('opacity');
-      setTimeout(()=>sharePullOverlay.classList.remove('is-active'),220);
+      resetSharePull();
     }
     homeTopPanel.addEventListener('touchend',finishTouchPanelPull,{passive:true});
     homeTopPanel.addEventListener('touchcancel',finishTouchPanelPull,{passive:true});
@@ -1006,6 +1051,6 @@
     });
     requestAnimationFrame(physicsFrame);
   </script>
-  <script src="experience.js?v=20260921-2"></script>
+  <script src="experience.js?v=20260921-3"></script>
 </body>
 </html>
