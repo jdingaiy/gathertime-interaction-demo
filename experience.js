@@ -166,7 +166,16 @@
     }
     prepare(input) { return this.post('prepare',input); }
     interviewTurn(input) { return this.post('interview',input); }
+    transcribe(input) { return this.post('transcribe',input); }
     generateHistory(input) { return this.post('generate',input); }
+    async uploadAudio(blob) {
+      const form = new FormData();
+      form.append('audio', blob, `gathertime-recording-${Date.now()}.webm`);
+      const response = await fetch(`${this.baseUrl}/audio`, { method:'POST', body:form });
+      const data = await response.json().catch(()=>({}));
+      if (!response.ok) throw new Error(data?.msg || '录音上传失败');
+      return data;
+    }
   }
   const aiClient = new GatherTimeClient();
   const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -336,6 +345,19 @@
       finishInterview();
     } catch(error) { setInterviewStatus(error.message||'生成失败，请重试',true);setInterviewBusy(false);setAnswerButton('mic','开始说话'); }
   }
+  async function generateHistoryFromTranscript(transcript, context) {
+    setInterviewBusy(true);setInterviewStatus('正在生成回忆录…');
+    try {
+      const history=await aiClient.generateHistory({memory_context:context,user_confirmed_facts:(context.confirmed_facts||[]).map(f=>({field:f.field,value:f.value})),transcript});
+      currentSubject.history={title:history.title,deck:history.deck,paragraphs:String(history.article||'').split(/\n\s*\n/).filter(Boolean)};
+      currentSubject.summary=history.deck||currentSubject.summary;
+      currentSubject.needsConfirmation=history.needs_confirmation||[];
+      finishInterview();
+    } catch(error) {
+      setInterviewStatus(error.message||'生成失败，请重试',true);
+      setInterviewBusy(false);setAnswerButton('mic','重新录音');
+    }
+  }
   async function beginAudioRecording() {
     if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       setInterviewStatus('当前浏览器不支持录音，请使用 Safari 或 Chrome。',true);
@@ -353,13 +375,8 @@
         mediaStream?.getTracks().forEach(track=>track.stop()); mediaStream=null;
         setAnswerButton('progress_activity','正在整理录音');
         setInterviewBusy(true);
-        setInterviewStatus('录音已保存。正在等待语音转写服务…');
-        // The current Coze setup exposes only prepare / interview / generate. Do not invent a transcript here.
-        setTimeout(()=>{
-          setInterviewBusy(false);
-          setAnswerButton('mic','重新录音');
-          setInterviewStatus('还未接入语音转写工作流，因此不能从录音生成回忆录。',true);
-        },250);
+        setInterviewStatus('正在上传并转写录音…');
+        processRecordedAudio(new Blob(recordingChunks,{type:mediaRecorder.mimeType||'audio/webm'}));
       };
       mediaRecorder.start();
     } catch(error) {
@@ -369,6 +386,19 @@
   }
   function stopAudioRecording() {
     if(mediaRecorder?.state==='recording') mediaRecorder.stop();
+  }
+  async function processRecordedAudio(audioBlob) {
+    try {
+      const audioFile=await aiClient.uploadAudio(audioBlob);
+      const transcription=await aiClient.transcribe({audio_file:audioFile,language:'zh-CN'});
+      if(!transcription.transcript?.trim()) throw new Error('没有识别到有效语音，请重新录制。');
+      setInterviewStatus('转写完成，正在整理回忆…');
+      const prep=await aiClient.prepare({image_url:{url:new URL(currentSubject.src,document.baseURI).href,file_type:'image'},asset_type:currentSubject.type==='photo'?'photo':'object',user_hint:currentSubject.title,memory_id:crypto.randomUUID()});
+      await generateHistoryFromTranscript(transcription.transcript,prep.memory_context);
+    } catch(error) {
+      setInterviewStatus(error.message||'录音处理失败，请重试',true);
+      setInterviewBusy(false);setAnswerButton('mic','重新录音');
+    }
   }
   function ensureSubjectOnHome() {
     if(!currentSubject)return;
