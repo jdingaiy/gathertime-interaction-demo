@@ -344,12 +344,24 @@
   $('.share-reroll').addEventListener('click',()=>showToast('更多人生游戏样式即将加入'));
 
   let detailPullStartY=null;
+  let detailTouchPullStartY=null;
   let detailWheelDistance=0;
   let detailWheelTimer=0;
   const detailScroll=$('#detail-view .experience-scroll');
   detailScroll.addEventListener('pointerdown',event=>{if(detailScroll.scrollTop<=1)detailPullStartY=event.clientY;});
   detailScroll.addEventListener('pointerup',event=>{if(detailPullStartY===null)return;const distance=event.clientY-detailPullStartY;detailPullStartY=null;if(distance>72)returnHomeFromDetail();});
   detailScroll.addEventListener('pointercancel',()=>{detailPullStartY=null;});
+  detailScroll.addEventListener('touchstart',event=>{
+    if(detailScroll.scrollTop<=1)detailTouchPullStartY=event.touches[0]?.clientY??null;
+  },{passive:true});
+  detailScroll.addEventListener('touchend',event=>{
+    if(detailTouchPullStartY===null)return;
+    const endY=event.changedTouches[0]?.clientY??detailTouchPullStartY;
+    const distance=endY-detailTouchPullStartY;
+    detailTouchPullStartY=null;
+    if(distance>72&&detailScroll.scrollTop<=1)returnHomeFromDetail();
+  },{passive:true});
+  detailScroll.addEventListener('touchcancel',()=>{detailTouchPullStartY=null;},{passive:true});
   detailScroll.addEventListener('wheel',event=>{
     if(detailScroll.scrollTop>1||event.deltaY>=0){detailWheelDistance=0;return;}
     event.preventDefault();clearTimeout(detailWheelTimer);detailWheelDistance+=-event.deltaY;
