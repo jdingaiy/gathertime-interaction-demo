@@ -193,12 +193,6 @@ body.experience-open #settings-panel { opacity: 0; pointer-events: none; }
 .share-actions button,.share-actions a { display: inline-flex; align-items: center; justify-content: center; gap: 7px; text-decoration: none; }
 .share-actions .material-symbols-rounded { font-size: 20px; }
 @media (max-width:600px) {
-  /* On phones the status area stays visually separate from the black pull panel. */
-  #home-top-panel { top: max(44px, env(safe-area-inset-top)); }
-  #home-top-panel::before {
-    height: max(44px, env(safe-area-inset-top));
-    background: linear-gradient(180deg,#fff 0%,#fff 58%,rgba(255,255,255,.92) 100%);
-  }
   #home-brand { width: 88px; left: 16px; top: 16px; }
   #home-top-panel { border-radius: 0 0 46px 46px; }
   #add-memory-button { width: 54px; height: 54px; }
