@@ -158,6 +158,7 @@
     root.classList.toggle('is-home',name==='home');
     views.forEach(view=>{const active=view.id===`${name}-view`;view.classList.toggle('is-active',active);view.setAttribute('aria-hidden',String(!active));});
     document.body.classList.toggle('experience-open',name!=='home');
+    window.setGatherExperienceTheme?.(name);
   }
   function goHome() { stopInterviewTimer(); showView('home'); window.GatherHome?.closeFocus(); }
   function returnHomeFromDetail() {
