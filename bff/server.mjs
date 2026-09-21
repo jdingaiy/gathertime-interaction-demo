@@ -5,6 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 const app = express();
+app.set('trust proxy', 1);
 const port = Number(process.env.PORT || 8787);
 const token = process.env.COZE_PAT;
 const uploadDir = path.join('/tmp', 'gathertime-audio');
