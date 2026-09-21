@@ -115,7 +115,7 @@
       <div class="interview-shell"><div class="subject-stage"><div class="ripple-field"><span></span><span></span><span></span><span></span></div><img class="subject-float" alt="采访对象"></div>
         <div class="interview-panel">
           <div class="interview-ready"><div class="mode-switcher" role="tablist" aria-label="录音模式"><button data-mode="record" class="is-active" role="tab" aria-selected="true">听你们聊聊</button><button data-mode="ai" role="tab" aria-selected="false">和我聊聊</button></div><div class="mode-dots" aria-hidden="true"><i class="is-active"></i><i></i></div><button class="record-button start-interview" aria-label="开始录音"><span class="material-symbols-rounded">mic</span></button></div>
-          <div class="interview-running"><div class="question-number"></div><div class="question-text"></div><div class="live-wave">${bars.map((h,i)=>`<i style="--h:${h}px;--i:${i}"></i>`).join('')}</div><div class="record-meta">00:00</div><p class="interview-status" role="status"></p><div class="finish-row"><button class="record-button next-answer" type="button" aria-label="按住或点击开始说话"><span class="material-symbols-rounded">mic</span></button></div></div>
+          <div class="interview-running"><div class="question-number"></div><div class="question-text"></div><div class="live-wave" aria-hidden="true">${bars.map((h,i)=>`<i style="--h:${h}px;--i:${i}"></i>`).join('')}</div><div class="record-meta">00:00</div><p class="interview-status" role="status"></p><div class="finish-row"><button class="record-button next-answer" type="button" aria-label="开始说话"><span class="material-symbols-rounded">mic</span></button></div></div>
         </div>
       </div>
     </section>
@@ -141,6 +141,10 @@
   let shareBlobUrl = '';
   let aiSession = null;
   let interviewBusy = false;
+  let recognition = null;
+  let mediaRecorder = null;
+  let mediaStream = null;
+  let recordingChunks = [];
 
   class GatherTimeClient {
     constructor(baseUrl = window.GATHERTIME_API_BASE || '/api/gathertime') { this.baseUrl = baseUrl.replace(/\/$/, ''); }
@@ -187,7 +191,13 @@
     document.body.classList.toggle('experience-open',name!=='home');
     window.setGatherExperienceTheme?.(name);
   }
-  function goHome() { stopInterviewTimer(); showView('home'); window.GatherHome?.closeFocus(); }
+  function resetAudioCapture() {
+    if(recognition) { try { recognition.abort(); } catch {} recognition=null; }
+    if(mediaRecorder?.state==='recording') mediaRecorder.stop();
+    mediaStream?.getTracks().forEach(track=>track.stop()); mediaStream=null; mediaRecorder=null;
+    setListening(false);
+  }
+  function goHome() { stopInterviewTimer(); resetAudioCapture(); showView('home'); window.GatherHome?.closeFocus(); }
   function returnHomeFromDetail() {
     stopInterviewTimer();
     const image=$('.detail-subject');
@@ -223,6 +233,7 @@
 
   function configureInterview(subject) {
     currentSubject=subject;
+    resetAudioCapture();
     aiSession=null; interviewBusy=false;
     $('.subject-float').src=subject.src;
     $('.interview-ready').classList.remove('is-hidden');
@@ -250,6 +261,17 @@
   function setInterviewBusy(busy) {
     interviewBusy=busy;
     root.querySelectorAll('.interview-running button').forEach(el=>el.disabled=busy);
+    $('.next-answer').classList.toggle('is-disabled',busy);
+    if(busy) setAnswerButton('progress_activity','正在生成，请稍候');
+  }
+  function setAnswerButton(icon, label) {
+    const button=$('.next-answer');
+    button.querySelector('.material-symbols-rounded').textContent=icon;
+    button.setAttribute('aria-label',label);
+  }
+  function setListening(listening) {
+    $('.interview-shell').classList.toggle('is-listening',listening);
+    $('.next-answer').classList.toggle('is-listening',listening);
   }
   function transcriptFromContext(context) {
     return (context?.conversation||[]).map(turn=>`${turn.role==='assistant'?'采访：':'回答：'}${turn.text}`).join('\n');
@@ -258,11 +280,15 @@
     if(interviewBusy)return;
     interviewSeconds=0;questionIndex=0;
     $('.interview-ready').classList.add('is-hidden');$('.interview-running').classList.add('is-visible');$('.interview-shell').classList.add('is-recording');
-    $('.question-number').textContent='01';
-    $('.question-text').textContent='正在准备问题…';
-    $('.next-answer').textContent='提交回答';
+    $('.question-number').textContent=interviewMode==='ai'?'01':'';
+    $('.question-text').textContent=interviewMode==='ai'?'正在准备问题…':'';
+    setAnswerButton(interviewMode==='record'?'stop':'progress_activity',interviewMode==='record'?'结束录音':'正在生成问题');
     $('.record-meta').textContent='00:00';
     interviewTimer=setInterval(()=>{interviewSeconds++;$('.record-meta').textContent=`${String(Math.floor(interviewSeconds/60)).padStart(2,'0')}:${String(interviewSeconds%60).padStart(2,'0')}`;},1000);
+    if(interviewMode==='record') {
+      await beginAudioRecording();
+      return;
+    }
     setInterviewBusy(true);setInterviewStatus('正在理解这张图片…');
     try {
       const prep=await aiClient.prepare({image_url:{url:new URL(currentSubject.src,document.baseURI).href,file_type:'image'},asset_type:currentSubject.type==='photo'?'photo':'object',user_hint:currentSubject.title,memory_id:crypto.randomUUID()});
@@ -272,7 +298,10 @@
     } catch(error) {
       $('.question-text').textContent='暂时无法连接采访服务';
       setInterviewStatus(error.message || '请检查 AI 服务配置后重试',true);
-    } finally { setInterviewBusy(false); }
+    } finally {
+      setInterviewBusy(false);
+      if(aiSession?.context) setAnswerButton('mic','开始说话');
+    }
   }
   function stopInterviewTimer(){clearInterval(interviewTimer);interviewTimer=0;}
   async function nextInterviewStep(action='answer', voiceAnswer='') {
@@ -290,7 +319,10 @@
       setTimeout(()=>{$('.question-text').textContent=result.next_question||'还有什么想补充的吗？';$('.question-text').classList.remove('is-changing');},180);
       setInterviewStatus('');
     } catch(error) { setInterviewStatus(error.message||'提交失败，请重试',true); }
-    finally { setInterviewBusy(false); }
+    finally {
+      setInterviewBusy(false);
+      if(aiSession?.context) setAnswerButton('mic','开始说话');
+    }
   }
   async function generateHistory(force=false) {
     if((interviewBusy&&!force)||!aiSession?.context)return;
@@ -302,7 +334,41 @@
       currentSubject.summary=history.deck||currentSubject.summary;
       currentSubject.needsConfirmation=history.needs_confirmation||[];
       finishInterview();
-    } catch(error) { setInterviewStatus(error.message||'生成失败，请重试',true);setInterviewBusy(false); }
+    } catch(error) { setInterviewStatus(error.message||'生成失败，请重试',true);setInterviewBusy(false);setAnswerButton('mic','开始说话'); }
+  }
+  async function beginAudioRecording() {
+    if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      setInterviewStatus('当前浏览器不支持录音，请使用 Safari 或 Chrome。',true);
+      setAnswerButton('mic','重新开始录音');
+      return;
+    }
+    try {
+      mediaStream=await navigator.mediaDevices.getUserMedia({audio:true});
+      recordingChunks=[];
+      mediaRecorder=new MediaRecorder(mediaStream);
+      mediaRecorder.ondataavailable=event=>{ if(event.data.size) recordingChunks.push(event.data); };
+      mediaRecorder.onstart=()=>{ setListening(true); setInterviewStatus(''); setAnswerButton('stop','结束录音'); };
+      mediaRecorder.onstop=()=>{
+        setListening(false);
+        mediaStream?.getTracks().forEach(track=>track.stop()); mediaStream=null;
+        setAnswerButton('progress_activity','正在整理录音');
+        setInterviewBusy(true);
+        setInterviewStatus('录音已保存。正在等待语音转写服务…');
+        // The current Coze setup exposes only prepare / interview / generate. Do not invent a transcript here.
+        setTimeout(()=>{
+          setInterviewBusy(false);
+          setAnswerButton('mic','重新录音');
+          setInterviewStatus('还未接入语音转写工作流，因此不能从录音生成回忆录。',true);
+        },250);
+      };
+      mediaRecorder.start();
+    } catch(error) {
+      setAnswerButton('mic','重新开始录音');
+      setInterviewStatus(error?.name==='NotAllowedError'?'未获得麦克风权限，请在浏览器设置中允许录音。':'无法开始录音，请稍后重试。',true);
+    }
+  }
+  function stopAudioRecording() {
+    if(mediaRecorder?.state==='recording') mediaRecorder.stop();
   }
   function ensureSubjectOnHome() {
     if(!currentSubject)return;
@@ -406,20 +472,34 @@
   root.querySelectorAll('.capture-mode').forEach(button=>button.addEventListener('click',()=>setCaptureMode(button.dataset.mode)));
   $('.switch').addEventListener('click',()=>{repairEnabled=!repairEnabled;$('.switch').classList.toggle('is-on',repairEnabled);});
   $('.shutter').addEventListener('click',showCaptureResult);
-  $('.interview-back').addEventListener('click',()=>{stopInterviewTimer();showView(currentSubject?.item?'home':'capture');});
+  $('.interview-back').addEventListener('click',()=>{stopInterviewTimer();resetAudioCapture();showView(currentSubject?.item?'home':'capture');});
   root.querySelectorAll('.mode-switcher button').forEach(button=>button.addEventListener('click',()=>setInterviewMode(button.dataset.mode)));
   $('.interview-shell').addEventListener('pointerdown',event=>{if(!event.target.closest('button')&&!$('.interview-shell').classList.contains('is-recording'))swipeStartX=event.clientX;});
   $('.interview-shell').addEventListener('pointerup',event=>{if(swipeStartX===null)return;const delta=event.clientX-swipeStartX;swipeStartX=null;if(Math.abs(delta)>44)setInterviewMode(delta<0?'ai':'record');});
   $('.interview-shell').addEventListener('pointercancel',()=>{swipeStartX=null;});
   $('.start-interview').addEventListener('click',startInterview);
   $('.next-answer').addEventListener('click',()=>{
+    if(interviewMode==='record') {
+      if(mediaRecorder?.state==='recording') stopAudioRecording();
+      else startInterview();
+      return;
+    }
+    if(recognition) { recognition.stop(); return; }
     const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!Recognition){setInterviewStatus('当前浏览器不支持语音输入。请使用 Chrome 或 Safari 的语音识别功能。',true);return;}
-    const recognition=new Recognition();recognition.lang='zh-CN';recognition.interimResults=false;recognition.maxAlternatives=1;
-    recognition.onstart=()=>{setInterviewStatus('正在听…');$('.next-answer').classList.add('is-listening');};
+    if(!Recognition){setInterviewStatus('当前 iPhone 浏览器不提供网页语音转写；录音本身可用，但需要接入语音转写工作流后才能生成回忆录。',true);return;}
+    recognition=new Recognition();recognition.lang='zh-CN';recognition.interimResults=false;recognition.maxAlternatives=1;
+    recognition.onstart=()=>{setInterviewStatus('正在听…');setListening(true);setAnswerButton('stop','结束说话');};
     recognition.onresult=event=>{const answer=event.results[0][0].transcript;setInterviewStatus('');nextInterviewStep('answer',answer);};
-    recognition.onerror=()=>setInterviewStatus('没有识别清楚，请再说一次。',true);
-    recognition.onend=()=>$('.next-answer').classList.remove('is-listening');
+    recognition.onerror=event=>{
+      const messages={
+        'no-speech':'没有检测到说话声，请靠近麦克风后重试。',
+        'not-allowed':'未获得麦克风权限，请在浏览器设置中允许录音。',
+        'service-not-allowed':'当前浏览器不允许网页语音转写，请使用录音模式。',
+        'network':'语音转写服务暂时不可用，请稍后重试。'
+      };
+      setInterviewStatus(messages[event.error]||'语音识别未完成，请再试一次。',true);
+    };
+    recognition.onend=()=>{recognition=null;setListening(false);if(!interviewBusy)setAnswerButton('mic','开始说话');};
     recognition.start();
   });
   $('.share-back').addEventListener('click',goHome);
