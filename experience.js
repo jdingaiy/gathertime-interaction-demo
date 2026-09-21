@@ -281,6 +281,7 @@
   function setListening(listening) {
     $('.interview-shell').classList.toggle('is-listening',listening);
     $('.next-answer').classList.toggle('is-listening',listening);
+    $('.interview-shell').classList.toggle('has-active-audio',listening);
   }
   function transcriptFromContext(context) {
     return (context?.conversation||[]).map(turn=>`${turn.role==='assistant'?'采访：':'回答：'}${turn.text}`).join('\n');
@@ -289,7 +290,7 @@
     if(interviewBusy)return;
     interviewSeconds=0;questionIndex=0;
     $('.interview-ready').classList.add('is-hidden');$('.interview-running').classList.add('is-visible');$('.interview-shell').classList.add('is-recording');
-    $('.question-number').textContent=interviewMode==='ai'?'01':'';
+    $('.question-number').textContent='';
     $('.question-text').textContent=interviewMode==='ai'?'正在准备问题…':'';
     setAnswerButton(interviewMode==='record'?'stop':'progress_activity',interviewMode==='record'?'结束录音':'正在生成问题');
     $('.record-meta').textContent='00:00';
@@ -302,6 +303,7 @@
     try {
       const prep=await aiClient.prepare({image_url:{url:new URL(currentSubject.src,document.baseURI).href,file_type:'image'},asset_type:currentSubject.type==='photo'?'photo':'object',user_hint:currentSubject.title,memory_id:crypto.randomUUID()});
       aiSession={context:prep.memory_context,visibleFacts:prep.visible_facts||[],hypotheses:prep.hypotheses_to_confirm||[]};
+      $('.question-number').textContent='01';
       $('.question-text').textContent=prep.first_question||'你最想从哪里开始讲起？';
       setInterviewStatus(aiSession.visibleFacts.length?`识别到：${aiSession.visibleFacts[0]}`:'');
     } catch(error) {
